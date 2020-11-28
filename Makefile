@@ -7,11 +7,13 @@ HDRS = \
 
 SRCS_CLIENT = \
        project/src/client_main.c \
-       project/src/client.c
+       project/src/client.c \
+       project/src/utils.c
 
 SRCS_SERVER = \
        project/src/server.c \
-       project/src/server_main.c
+       project/src/server_main.c \
+       project/src/utils.c
 
 .PHONY: all clean
 

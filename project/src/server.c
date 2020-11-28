@@ -4,10 +4,17 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <signal.h>
-#include "server.h"
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+
+#include "server.h"
+#include "utils.h"
+
+
+#define active_clients_fpath "./project/data/active_clients.txt"
+#define config_fpath "./project/data/config.txt"
+
 
 volatile int process_exited = 0;
 
@@ -17,26 +24,6 @@ static void sigterm_handler(int signum) {
 	} else {
 		process_exited = 1;
 	}
-}
-
-char* recv_all(int sock, int len) {
-	printf("len: %d\n", len);
-	char* str = (char*) calloc(len, sizeof(char));
-	char c;
-	int i;
-	for (i = 0; i < len; ++i) {
-		if (recv(sock, &c, 1, 0) == -1) {
-			goto error;
-		}
-		str[i] = c;
-		printf("%c\n", c);
-	}
-	str[i] = '\0';
-	return str;
-
-error:
-	close(sock);
-	return NULL;
 }
 
 server_t* server_create(hserver_config_t *config) {
@@ -71,6 +58,9 @@ server_t* server_create(hserver_config_t *config) {
 	}
 
 	server->sock = sock;
+
+	FILE* active_file = fopen(active_clients_fpath, "a");
+	fclose(active_file);
 	
 	return server;
 
@@ -87,11 +77,42 @@ int process_setup_signals() {
 	return 0;
 }
 
+int client_identify(client_id* id, char* network_addr) {
+	FILE* config_file = fopen(config_fpath, "r");
+	if (config_file == NULL) {
+		return -1;
+	}
+
+	char* c_name = (char*)calloc(1024, sizeof(char));
+	char* c_password = (char*)calloc(1024, sizeof(char));
+	char* c_network = (char*)calloc(1024, sizeof(char));
+
+	while(fscanf(config_file, "%s %s %s", c_name, c_password, c_network) == 3) {
+		if (strlen(c_name) == strlen(id->name) && strncmp(c_name, id->name, strlen(c_name)) == 0) {
+			if (strlen(c_password) == strlen(id->password) && strncmp(c_password, id->password, strlen(c_password)) == 0) {
+				strncpy(network_addr, c_network, strlen(c_network));
+
+				fclose(config_file);
+
+				free(c_name);
+				free(c_password);
+				free(c_network);
+
+				return 0;
+			}
+		}
+	}
+	free(c_name);
+	free(c_password);
+	free(c_network);
+	fclose(config_file);
+	return -1;
+}
+
 int server_run(hserver_config_t *config) {
     server_t* server = server_create(config);
 
     while (true) {
-
 		struct sockaddr_in client;
 		socklen_t len = sizeof(client);
 		int socket = accept(server->sock, (struct sockaddr *)&client, &len);
@@ -109,25 +130,44 @@ int server_run(hserver_config_t *config) {
 		if (recv(socket, &id_len, sizeof(id_len), 0) == -1) {
 			return -1;
 		}
-		id.name = recv_all(socket, id_len);
-
-		recv(socket, &id_len, sizeof(id_len), 0);
-		
-		if (recv(socket, &id_len, sizeof(id_len), 0) > 0 && id_len != 0) 
+		id.name = (char*) calloc(id_len, sizeof(char));
+		if (recv_all(socket, id_len, id.name) == -1)
 			return -1;
-		id.password = recv_all(socket, id_len);
+		
+		if (recv(socket, &id_len, sizeof(id_len), 0) == -1) {
+			return -1;
+		}
+		id.password = (char*) calloc(id_len,sizeof(char));
+		if (recv_all(socket, id_len, id.password) == -1)
+			return -1;
 
-		printf("%s %s\n", id.name, id.password);
-		// client_id id;
-		// id.name = (char*) calloc(1000, sizeof(char));
-		// id.password = (char*) calloc(1000, sizeof(char));
-		// char name[255];
-		// char pass[255];
-		// recv(socket, &name, 255, 0);
-		// recv(socket, &pass, 255, 0);
-		// printf("recv code: %d %d\n", size, res2);	
-		// printf("%s %s\n", pass, name);
+		printf("Got data: %s %s\n", id.name, id.password);
 		// printf("Error: %s\n", strerror(errno));
+
+		char* network_addr = (char*) calloc(1024, sizeof(char));
+		if (client_identify(&id, network_addr) == -1) {
+			strcpy(network_addr, "Access denied");
+		}
+
+		size_t network_addr_len = strlen(network_addr);
+		puts("ok");
+		int send_res = send(socket, &network_addr_len, sizeof(network_addr_len), 0);
+		printf("send: %d", send_res);
+		
+		if (send_res == -1) {
+			puts("Network inf wasn't send");
+			printf("Error: %s\n", strerror(errno));
+
+		} else if (send_all(socket, network_addr, strlen(network_addr)) == -1) {
+			puts("Network inf wasn't send");
+			printf("Error: %s\n", strerror(errno));
+		} else {
+			puts("Network inf was sent to client");
+		}
+
+		free(id.name);
+		free(id.password);
+		free(network_addr);
 
 		if (process_exited)
 			break;
