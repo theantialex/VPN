@@ -23,5 +23,6 @@ server_t* server_create(hserver_config_t *config);
 void server_close(server_t *server);
 int server_run(hserver_config_t *config);
 int process_setup_signals();
+char* recv_all(int sock, int len);
 
 #endif
