@@ -11,7 +11,7 @@
 #include "utils.h"
 
 client_t* client_create(int socket, client_id id) {
-    client_t* client = calloc(1, sizeof(client));
+    client_t* client = calloc(1, sizeof(*client));
     if (client == NULL) {
         return NULL;
     }
