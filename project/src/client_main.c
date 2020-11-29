@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
     if (connect(client->sock, (struct sockaddr *) &dest_addr, sizeof(dest_addr)) == 0) {
         puts("Client connected");
         send_data(client);
+        get_response(client);
     }
 
     return 0;

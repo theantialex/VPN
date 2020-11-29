@@ -23,5 +23,6 @@ void server_close(server_t *server);
 int server_run(hserver_config_t *config);
 int process_setup_signals();
 int client_identify(client_id* id, char* network_addr);
+int add_active_client(char* client_name, char* client_network);
 
 #endif

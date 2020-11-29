@@ -109,6 +109,20 @@ int client_identify(client_id* id, char* network_addr) {
 	return -1;
 }
 
+int add_active_client(char* client_name, char* client_network) {
+	FILE* aclient_file = fopen(active_clients_fpath, "a+");
+	if (aclient_file == NULL) {
+		return -1;
+	}
+	if (fprintf(aclient_file, "%s %s\n", client_name, client_network) != 2) {
+		fclose(aclient_file);
+		return -1;
+	}
+
+	fclose(aclient_file);
+	return 0;
+}
+
 int server_run(hserver_config_t *config) {
     server_t* server = server_create(config);
 
@@ -147,22 +161,20 @@ int server_run(hserver_config_t *config) {
 		char* network_addr = (char*) calloc(1024, sizeof(char));
 		if (client_identify(&id, network_addr) == -1) {
 			strcpy(network_addr, "Access denied");
+		} else {
+			add_active_client(id.name, network_addr);
 		}
 
 		size_t network_addr_len = strlen(network_addr);
-		puts("ok");
-		int send_res = send(socket, &network_addr_len, sizeof(network_addr_len), 0);
-		printf("send: %d", send_res);
-		
-		if (send_res == -1) {
-			puts("Network inf wasn't send");
-			printf("Error: %s\n", strerror(errno));
 
-		} else if (send_all(socket, network_addr, strlen(network_addr)) == -1) {
-			puts("Network inf wasn't send");
-			printf("Error: %s\n", strerror(errno));
+		if (send(socket, &network_addr_len, sizeof(network_addr_len), 0) == -1) {
+			puts("Access result wasn't sent");
+		}		
+		else if (send_all(socket, network_addr, strlen(network_addr)) == -1) {
+			puts("Access result wasn't sent");
+			// printf("Error: %s\n", strerror(errno));
 		} else {
-			puts("Network inf was sent to client");
+			puts("Access result was sent to client");
 		}
 
 		free(id.name);

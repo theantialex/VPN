@@ -26,8 +26,7 @@ void send_data(client_t* client) {
 void get_response(client_t* client) {
     size_t response_len;
     recv(client->sock, &response_len, sizeof(response_len), 0);
-    printf("get len %ld", response_len);
     char* get_addr = (char*) calloc(response_len, sizeof(char));
     recv_all(client->sock, response_len, get_addr);
-    printf("Responce received: %s", get_addr);
+    printf("Responce received: %s\n", get_addr);
 }
