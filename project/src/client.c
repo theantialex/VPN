@@ -48,12 +48,12 @@ error:
 	return FAILURE;
 }
 
-int get_response(client_t* client) {
+char* get_response(client_t* client) {
     size_t response_len;
     if (recv(client->sock, &response_len, sizeof(response_len), 0) == -1) {
         goto error;
     }
-    
+
     char* get_addr = (char*) calloc(response_len, sizeof(char));
     if (get_addr == NULL) {
         goto error;
@@ -65,22 +65,24 @@ int get_response(client_t* client) {
     }
 
     printf("Responce received: %s\n", get_addr);
-    return SUCCESS;
+    return get_addr;
 
 error:
     printf("Error occured while getting response at client: %s\n", strerror(errno));
-	return FAILURE;
+	return NULL;
 }
 
 int client_run(client_id* id) {
     int clt_socket;
     clt_socket  = socket(AF_INET, SOCK_STREAM, 0);
     if (clt_socket == -1) {
-        goto error;
+        printf("Error occured while running client: %s\n", strerror(errno));
+        return FAILURE;
     }
 
     client_t* client = client_create(clt_socket, *id);
     if (client == NULL) {
+        printf("Error occured while running client: %s\n", strerror(errno));
         goto error;
     }
 
@@ -102,13 +104,19 @@ int client_run(client_id* id) {
     if (send_data(client) == -1) {
         goto error;
     }
-    if (get_response(client) == -1) {
+
+    char* get_addr = get_response(client);
+    if (get_addr == NULL) {
         goto error;
     }
+
+    free(get_addr);
+    free(client);
 
     return SUCCESS;
 
 error:
     printf("Error occured while running client: %s\n", strerror(errno));
+    free(client);
 	return FAILURE;
 }

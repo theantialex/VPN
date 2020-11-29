@@ -63,6 +63,7 @@ server_t* server_create(hserver_config_t *config) {
 
 	FILE* active_clients_file = fopen(active_clients_fpath, "w");
 	if (active_clients_file == NULL) {
+		free(server);
 		goto error;
 	}
 	fclose(active_clients_file);
@@ -180,28 +181,28 @@ client_id* get_client_id(int socket) {
 	}
 
 	if (recv_all(socket, id_len, id->name) == -1) {
-		free(id);
 		free(id->name);
+		free(id);
 		goto error;
 	}
 	
 	if (recv(socket, &id_len, sizeof(id_len), 0) == -1) {
-		free(id);
 		free(id->name);
+		free(id);
 		goto error;
 	}
 
 	id->password = (char*) calloc(id_len,sizeof(char));
 	if (id->password == NULL) {
-		free(id);
 		free(id->name);
+		free(id);
 		goto error;
 	}
 
 	if (recv_all(socket, id_len, id->password) == -1) {
-		free(id);
 		free(id->name);
 		free(id->password);
+		free(id);
 		goto error;
 	}
 
@@ -260,11 +261,14 @@ int server_run(hserver_config_t *config) {
         inet_ntop(AF_INET, &(((struct sockaddr_in*) &client)->sin_addr), s, sizeof(s));
 		printf("Got a connection from %s\n", s);
 
-		if (socket == -1)
-			return -1;
+		if (socket == -1) {
+			free(server);
+			goto error;
+		}
 		
 		client_id* id = get_client_id(socket);
 		if (id == NULL) {
+			server_close(server);
 			goto error;
 		}
 
@@ -274,6 +278,8 @@ int server_run(hserver_config_t *config) {
 			free(id->name);
 			free(id->password);
 			free(id);
+
+			server_close(server);
 			goto error;
 		};		
 
@@ -288,7 +294,7 @@ int server_run(hserver_config_t *config) {
 			continue;*/
     }
     server_close(server);
-    return 0;
+    return SUCCESS;
 
 error:
 	return FAILURE;
