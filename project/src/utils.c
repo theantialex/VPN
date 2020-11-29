@@ -1,17 +1,26 @@
+#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
 #include "utils.h"
 
 int send_all(int sock, char* str, int len) {
     int i = 0;
     for (; i < len; i++) {
         if (send(sock, &str[i], sizeof(str[i]), 0) == -1) {
-            return -1;
+            goto error;
         }
     }
-    return 0;
+
+    return SUCCESS;
+
+error:
+    printf("Error occured while writing from socket: %s\n", strerror(errno));
+	return FAILURE;
 }
 
 int recv_all(int sock, int len , char* result_str) {
@@ -24,9 +33,9 @@ int recv_all(int sock, int len , char* result_str) {
 		result_str[i] = c;
 	}
 	result_str[i] = '\0';
-	return 0;
+	return SUCCESS;
 
 error:
-	close(sock);
-	return -1;
+    printf("Error occured while reading from socket: %s\n", strerror(errno));
+	return FAILURE;
 }

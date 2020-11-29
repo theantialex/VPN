@@ -2,8 +2,7 @@
 
 #include "server.h"
 
-int main(/*int argc, char *argv[]*/ void) {
-
+int main() {
 	hserver_config_t config = {
 		.root = "/var/www/",
 		.address = "127.0.0.1",

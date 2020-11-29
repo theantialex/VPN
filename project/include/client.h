@@ -1,8 +1,9 @@
-#ifndef CLIENT_H
-#define CLIENT_H
+#ifndef _PROJECT_INCLUDE_CLIENT_H_
+#define _PROJECT_INCLUDE_CLIENT_H_
 
-#include <sys/socket.h>
 #include <stdlib.h>
+#include <sys/socket.h>
+
 
 typedef struct {
 	char* name;
@@ -15,7 +16,9 @@ typedef struct {
 } client_t;
 
 client_t* client_create(int socket, client_id id);
-void send_data(client_t* client);
-void get_response(client_t* client);
+int send_data(client_t* client);
+int get_response(client_t* client);
 
-#endif
+int client_run(client_id* id);
+
+#endif  // _PROJECT_INCLUDE_CLIENT_H_
