@@ -23,7 +23,7 @@ error:
 	return FAILURE;
 }
 
-int recv_all(int sock, int len , char* result_str) {
+int recv_all(int sock, int len, char* result_str) {
 	char c;
 	int i;
 	for (i = 0; i < len; ++i) {
