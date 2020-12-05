@@ -20,6 +20,6 @@ int send_id(client_t* client);
 char* get_response(client_t* client);
 
 int client_run(client_id* id);
-int data_anticipation(int tun_socket, int client_server_socket);
+// int data_anticipation(int tun_socket, int client_server_socket);
 
 #endif  // PROJECT_INCLUDE_CLIENT_H_

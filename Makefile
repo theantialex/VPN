@@ -8,7 +8,9 @@ HDRS = \
 SRCS_CLIENT = \
        project/src/client_main.c \
        project/src/client.c \
-       project/src/utils.c
+       project/src/utils.c \
+       project/src/ip_parser.c \
+       project/src/tun.c
 
 SRCS_SERVER = \
        project/src/server.c \
@@ -20,7 +22,7 @@ SRCS_SERVER = \
 all: client server
 
 client: $(SRCS_CLIENT)
-	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_CLIENT) $(CFLAGS) $(SRCS_CLIENT)
+	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_CLIENT) $(CFLAGS) $(SRCS_CLIENT) -lm
 
 server: $(SRCS_SERVER)
 	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_SERVER) $(CFLAGS) $(SRCS_SERVER)
