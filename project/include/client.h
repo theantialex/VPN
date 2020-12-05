@@ -16,7 +16,7 @@ typedef struct {
 } client_t;
 
 client_t* client_create(int socket, client_id id);
-int send_data(client_t* client);
+int send_id(client_t* client);
 char* get_response(client_t* client);
 
 int client_run(client_id* id);

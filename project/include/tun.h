@@ -11,6 +11,6 @@ void usage(void);
 int main_tun(int argc, char* argv[]);
 
 int create_client_tun(char* if_name, int port, char* network);
-int data_anticipation(int tun_socket, int serv_socket);
+int event_anticipation(int tun_socket, int serv_socket);
 
 #endif  // PROJECT_INCLUDE_SERVER_H_
