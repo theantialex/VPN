@@ -1,6 +1,11 @@
 TARGET_CLIENT = client.out
 TARGET_SERVER = server.out
 
+prefix=/opt/libevent
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
 # XXX: Don't forget backslash at the end of any line except the last one
 HDRS = \
 	   project/include
@@ -22,7 +27,7 @@ SRCS_SERVER = \
 all: client server
 
 client: $(SRCS_CLIENT)
-	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_CLIENT) $(CFLAGS) $(SRCS_CLIENT) -lm
+	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_CLIENT) $(CFLAGS) $(SRCS_CLIENT) -lm -I${includedir} -levent
 
 server: $(SRCS_SERVER)
 	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_SERVER) $(CFLAGS) $(SRCS_SERVER)

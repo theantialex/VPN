@@ -1,6 +1,10 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <ifaddrs.h>
+
+#include <event2/event.h>
+#include <event2/event-config.h>
+
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -20,7 +24,6 @@
 #define SERVER_ADDRESS "127.0.0.1"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tun0"
-#define SERVER_PORT 80
 #define BUFSIZE 2000
 
 
@@ -106,216 +109,127 @@ error:
 	return FAILURE;
 }
 
-// unsigned short csum(unsigned short *ptr,int nbytes) 
-// {
-// 	register long sum;
-// 	unsigned short oddbyte;
-// 	register short answer;
-
-// 	sum=0;
-// 	while(nbytes> 1) {
-// 		sum+=*ptr++;
-// 		nbytes-=2;
-// 	}
-// 	if(nbytes==1) {
-// 		oddbyte=0;
-// 		*((u_char*)&oddbyte)=*(u_char*)ptr;
-// 		sum+=oddbyte;
-// 	}
-
-// 	sum = (sum>>16)+(sum & 0xffff);
-// 	sum = sum + (sum>>16);
-// 	answer=(short)~sum;
-	
-// 	return(answer);
-// }
-
-// struct pseudo_header
-// {
-// 	u_int32_t source_address;
-// 	u_int32_t dest_address;
-// 	u_int8_t placeholder;
-// 	u_int8_t protocol;
-// 	u_int16_t tcp_length;
-// };
-
-//  ip_packet_generation(char* source_ip, struct sockaddr_in sin, int source_port, int dest_port) {
-//     char datagram[4096] , source_ip[32] , *data , *pseudogram;
-	
-// 	//zero out the packet buffer
-// 	memset (datagram, 0, 4096);
-	
-// 	//IP header
-// 	struct iphdr *iph = (struct iphdr *) datagram;
-	
-// 	//TCP header
-// 	struct tcphdr *tcph = (struct tcphdr *) (datagram + sizeof (struct ip));
-// 	struct pseudo_header psh;
-	
-// 	//Data part
-// 	data = datagram + sizeof(struct iphdr) + sizeof(struct tcphdr);
-// 	strcpy(data , "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-	
-// 	//Fill in the IP Header
-// 	iph->ihl = 5;
-// 	iph->version = 4;
-// 	iph->tos = 0;
-// 	iph->tot_len = sizeof (struct iphdr) + sizeof (struct tcphdr) + strlen(data);
-// 	iph->id = htonl (54321);	//Id of this packet
-// 	iph->frag_off = 0;
-// 	iph->ttl = 255;
-// 	iph->protocol = IPPROTO_TCP;
-// 	iph->check = 0;		//Set to 0 before calculating checksum
-// 	iph->saddr = inet_addr ( source_ip );	//Spoof the source ip address
-// 	iph->daddr = sin.sin_addr.s_addr;
-	
-// 	//Ip checksum
-// 	iph->check = csum ((unsigned short *) datagram, iph->tot_len);
-	
-// 	//TCP Header
-// 	tcph->source = htons (source_port);
-// 	tcph->dest = htons (dest_port);
-// 	tcph->seq = 0;
-// 	tcph->ack_seq = 0;
-// 	tcph->doff = 5;	//tcp header size
-// 	tcph->fin=0;
-// 	tcph->syn=1;
-// 	tcph->rst=0;
-// 	tcph->psh=0;
-// 	tcph->ack=0;
-// 	tcph->urg=0;
-// 	tcph->window = htons (5840);	/* maximum allowed window size */
-// 	tcph->check = 0;	//leave checksum 0 now, filled later by pseudo header
-// 	tcph->urg_ptr = 0;
-	
-// 	//Now the TCP checksum
-// 	psh.source_address = inet_addr( source_ip );
-// 	psh.dest_address = sin.sin_addr.s_addr;
-// 	psh.placeholder = 0;
-// 	psh.protocol = IPPROTO_TCP;
-// 	psh.tcp_length = htons(sizeof(struct tcphdr) + strlen(data) );
-	
-// 	int psize = sizeof(struct pseudo_header) + sizeof(struct tcphdr) + strlen(data);
-// 	pseudogram = malloc(psize);
-	
-// 	memcpy(pseudogram , (char*) &psh , sizeof (struct pseudo_header));
-// 	memcpy(pseudogram + sizeof(struct pseudo_header) , tcph , sizeof(struct tcphdr) + strlen(data));
-	
-// 	tcph->check = csum( (unsigned short*) pseudogram , psize);
-	
-//     return iph;	
-// 	//loop if you want to flood :)
-// }
-
-
-int routing(int post_sock, char* network_addr, int net_mask) {
+int routing(int post_sock, network_addr_t* web_addr, int* in_network) {
     struct sockaddr_in dest_addr;
     socklen_t dest_addr_len;
     if (getsockname(post_sock, (struct sockaddr*)&dest_addr, &dest_addr_len) == -1) {
         goto error;
     }
 
-    return is_in_network(network_addr, net_mask, inet_ntoa(dest_addr.sin_addr));
+    *in_network = is_in_network(web_addr->network_addr, web_addr->mask, inet_ntoa(dest_addr.sin_addr));
+
+    return SUCCESS;
 
 error:
     printf("Error occured while routing: %s\n", strerror(errno));
     return FAILURE;
 }
 
-// int accept_event_handler(int sock) {
-//     int post_socket;
-//     socklen_t remotelen;
-//     struct sockaddr_in remote;
-//     char buffer[BUFSIZE];
+void accept_event_handler(int tun_socket, short flags, struct accept_param_s* accept_param) {
+    puts("Got something in accept event handler!");
 
-//     remotelen = sizeof(remote);
-//     memset(&remote, 0, remotelen);
-//     if (post_socket = accept(sock, (struct sockaddr*)& remote, &remotelen) < 0){
-//       perror("accept()");
-//       exit(1);
-//     }
+    if (flags == 0) {
+        perror("flags");
+        exit(1);
+    }
+
+    int post_socket;
+    socklen_t remotelen;
+    struct sockaddr_in remote;
+    char buffer[BUFSIZE];
+
+    remotelen = sizeof(remote);
+    memset(&remote, 0, remotelen);
+    if ((post_socket = accept(tun_socket, (struct sockaddr*)& remote, &remotelen)) < 0){
+        perror("accept()");
+        exit(1);
+    }
     
-//     if (recv_all(post_socket, BUFSIZE, buffer) == -1) {
-//             goto error;
-//     }
+    if (recv_all(post_socket, BUFSIZE, buffer) == -1) {
+        perror("recv_all()");
+        exit(1);
+    }
 
-//     //ROUTING
-//     getsockname(p)
+    printf("here: %c\n", buffer[0]);
+
+    //ROUTING
+    int in_network;
+    if (routing(post_socket, accept_param->web_addr, &in_network) == FAILURE) {
+        perror("routing()");
+        exit(1);
+    }
+
     
-//     // if (routing(...) == 1) {
+    if (in_network == SUCCESS) {
+        if (send_all(accept_param->client_server_sock, buffer, strlen(buffer)) == -1) {
+            perror("send_all()");
+            exit(1);
+        }
+    }
+}
 
-//     //     if (send_all(sock, strlen(buffer), buffer) == -1) {
-//     //         goto error;
-//     //     }
-//     // }
+void recv_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_param) {
+    puts("Got something in recv event handler!");
 
-// error:
-//     printf("Error occured while running accept event handler: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
+    if (flags == 0) {
+        perror("flags");
+        exit(1);
+    }
 
-// int recv_event_handler(int tun_socket, int client_server_socket) {
-//     char buffer[BUFSIZE];
+    char buffer[BUFSIZE];
 
-//     if (recv_all(client_server_socket, BUFSIZE, buffer) == -1) {
-//         goto error;
-//     }
+    if (recv_all(client_server_socket, BUFSIZE, buffer) == -1) {
+        perror("recv_all()");
+        exit(1);
+    }
 
-//     if (send_all(tun_socket, strlen(buffer), buffer) == -1) {
-//         goto error;
-//     }
+    if (send_all(recv_param->tun_socket, buffer, strlen(buffer)) == -1) {
+        perror("send_all()");
+        exit(1);
+    }
+}
 
-//     error:
-//     printf("Error occured while running accept event handler: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
+int event_anticipation(int tun_socket, int client_server_socket, network_addr_t* web_addr) {
+    struct event_base* base = event_base_new();
+    if (!base) {
+        goto error;
+    }
 
-// int event_anticipation(int tun_socket, int client_server_socket) {
+    puts("Start event anticipation...");
 
+    struct accept_param_s accept_param = { client_server_socket, web_addr };
 
-//     if (FD_ISSET(tun_socket, &rd_set)){
-//       /* data from tun: just read it and write it to the network */
-    
-//       char buffer[BUFSIZE];
+    struct event* accept_event = event_new(base, tun_socket, EV_READ | EV_PERSIST, (event_callback_fn)accept_event_handler, (void*)&accept_param);
+    if (!accept_event) {
+        goto error;
+    }
 
-//       // TODO: ROUTING
-//       recv_all(tun_socket, BUFSIZE, buffer);
+    if (event_add(accept_event, NULL) < 0) {
+        goto error;
+    }
 
-//       /* write length + packet */
-//       int length = htons(strlen(buffer));
-//       if (send(serv_socket, &length, sizeof(length), 0) == -1) {
-//           goto error;
-//       }
-//       if (send_all(serv_socket, buffer, length) == -1) {
-//           goto error;
-//       }
+    struct recv_param_s recv_param = { tun_socket };
+    struct event* recv_event = event_new(base, client_server_socket, EV_READ | EV_PERSIST, (event_callback_fn)recv_event_handler, (void*)&recv_param);
+    if (!recv_event) {
+        goto error;
+    }
 
+    if (event_add(recv_event, NULL) < 0) {
+        goto error;
+    }
 
-//     if (FD_ISSET(serv_socket, &rd_set)){
-//       /* data from the network: read it, and write it to the tun interface. 
-//        * We need to read the length first, and then the packet */
+    if (event_base_dispatch(base) < 0) {
+        goto error;
+    }
 
-//       /* Read length */    
-//       int data_len;
-//       if (recv(serv_socket, &data_len, sizeof(data_len), 0) == -1) {
-//           goto error;
-//       }
-//       char* data = (char*) calloc(data_len, sizeof(char));
-//       if (recv_all(serv_socket, data_len, data) == -1) {
-//           goto error;
-//       }
+    event_base_free(base);
 
-//       /* write it into the tun/tap interface */ 
-//       if (send_all(tun_socket, data, data_len) == -1) {
-//           goto error;
-//       }
-//     }
+    return SUCCESS;
 
-//    }
-// error:
-//     printf("Error occured while running event anticipation: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
+error:
+    printf("Error occured while running event anticipation: %s\n", strerror(errno));
+	return FAILURE;
+}
 
 int client_run(client_id* id) {
     int clt_socket;
@@ -356,19 +270,12 @@ int client_run(client_id* id) {
     char network_addr[255] = {};
     get_network_and_mask(get_addr, network_addr, &mask);
 
-    struct sockaddr_in dest_addr;
-    socklen_t dest_addr_len = sizeof(dest_addr);
+    network_addr_t web_addr = { get_addr, mask };
 
-    if (getsockname(clt_socket, (struct sockaddr*)&dest_addr, &dest_addr_len) == -1) {
-        puts("here");
+    int tun_socket = create_client_tun(TUN_NAME, CLIENT_PORT);
+    if (event_anticipation(tun_socket, client->sock, &web_addr) == FAILURE) {
         goto error;
     }
-
-
-    // int tun_socket = create_client_tun(TUN_NAME, SERVER_PORT, SERVER_ADDRESS);
-    // if (event_anticipation(tun_socket, client->sock) != 0) {
-    //     goto error;
-    // }
 
     free(get_addr);
     free(client);
