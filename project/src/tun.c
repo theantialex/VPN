@@ -16,7 +16,6 @@
 #include <stdarg.h>
 
 #include "tun.h"
-#include "utils.h"
 
 /* buffer for reading from tun/tap interface, must be >= 1500 */
 #define BUFSIZE 2000   
@@ -162,7 +161,7 @@ void usage(void) {
   exit(1);
 }
 
-int create_client_tun(char* if_name, int port) {
+int create_client_tun(char* if_name) {
   int tun_fd;
   int sock_fd;
   struct sockaddr_in address;
@@ -189,15 +188,60 @@ int create_client_tun(char* if_name, int port) {
   memset(&address, 0, sizeof(address));
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = htonl(INADDR_ANY);
-  address.sin_port = htons(port);
+  address.sin_port = htons(0);
   if (bind(sock_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
       perror("bind()");
       exit(1);
+  }
+
+  struct sockaddr_in sin;
+  socklen_t len = sizeof(sin);
+  if (getsockname(sock_fd, (struct sockaddr *)&sin, &len) != -1) {
+    printf("port number %d\n", ntohs(sin.sin_port));
   }
     
   if (listen(sock_fd, 5) < 0) {
       perror("listen()");
       exit(1);
   }
+
   return sock_fd;
 }
+
+int create_server_tun(char* if_name, hserver_config_t* server_param) {
+  int tun_fd;
+  int sock_fd;
+  struct sockaddr_in address;
+  int optval = 1;
+  debug = 1;
+
+  if ( (tun_fd = tun_alloc(if_name, IFF_TUN)) < 0 ) {
+    my_err("Error connecting to tun/tap interface %s!\n", if_name);
+    exit(1);
+  }
+
+  do_debug("Successfully connected to interface %s\n", if_name);
+
+  if ( (sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("socket()");
+    exit(1);
+  }
+
+  if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
+      perror("setsockopt()");
+      exit(1);
+  }
+
+  memset(&address, 0, sizeof(address));
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = inet_addr(server_param->address);
+  address.sin_port = htons(server_param->port);
+  
+  if (connect(sock_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
+      perror("connect()");
+      exit(1);
+  }
+
+  return sock_fd;
+}
+

@@ -4,11 +4,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 
-
-typedef struct {
-	char* name;
-    char* password;
-} client_id;
+#include "utils.h"
 
 typedef struct {
     client_id identification;
@@ -36,7 +32,6 @@ char* get_response(client_t* client);
 void accept_event_handler(int tun_socket, short flags, struct accept_param_s* accept_param);
 void recv_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_param);
 int event_anticipation(int tun_socket, int client_server_socket, network_addr_t* web_addr);
-
 
 int client_run(client_id* id);
 

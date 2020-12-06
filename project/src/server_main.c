@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "server.h"
+#include "utils.h"
 
 int main() {
 	hserver_config_t config = {

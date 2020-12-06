@@ -21,6 +21,7 @@
 #include "tun.h"
 #include "utils.h"
 
+#define SERVER_PORT 80
 #define SERVER_ADDRESS "127.0.0.1"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tun0"
@@ -272,7 +273,7 @@ int client_run(client_id* id) {
 
     network_addr_t web_addr = { get_addr, mask };
 
-    int tun_socket = create_client_tun(TUN_NAME, CLIENT_PORT);
+    int tun_socket = create_client_tun(TUN_NAME);
     if (event_anticipation(tun_socket, client->sock, &web_addr) == FAILURE) {
         goto error;
     }

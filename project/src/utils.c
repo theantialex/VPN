@@ -39,3 +39,8 @@ error:
     printf("Error occured while reading from socket: %s\n", strerror(errno));
 	return FAILURE;
 }
+
+void free_client_id (client_id* id) {
+    free(id->name);
+    free(id->password);
+}

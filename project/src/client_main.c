@@ -8,5 +8,7 @@ int main(int argc, char *argv[]) {
 
     client_id id = {argv[1], argv[2]};
 
-    return client_run(&id);
+    int run_result = client_run(&id);
+    free_client_id(&id);
+    return run_result;
 }

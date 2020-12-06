@@ -9,12 +9,18 @@
 #include <unistd.h>
 
 #include "server.h"
-#include "utils.h"
+#include "tun.h"
 
 #define active_clients_fpath "./project/data/active_clients.txt"
 #define config_fpath "./project/data/config.txt"
+#define MAX_STORAGE 250
 
 volatile int process_exited = 0;
+
+static client_in_t* client_db[MAX_STORAGE][MAX_STORAGE] = {};
+
+int available_client_in_nw[MAX_STORAGE][MAX_STORAGE] = {};
+int available_network[MAX_STORAGE] = {};
 
 static void sigterm_handler(int signum) {
 	if (signum) {
@@ -200,8 +206,7 @@ client_id* get_client_id(int socket) {
 	}
 
 	if (recv_all(socket, id_len, id->password) == -1) {
-		free(id->name);
-		free(id->password);
+		free_client_id(id);
 		free(id);
 		goto error;
 	}
@@ -213,36 +218,98 @@ error:
 	return NULL;
 }
 
-int send_access_to_client(client_id* id, int socket) {
-	char* network_addr = (char*) calloc(1024, sizeof(char));
-	if (network_addr == NULL) {
-		goto error;
+int get_client_access(client_id* id, int network_storage_id, char* access_result) {
+	if (client_identify(id, access_result) == -1) {
+		strcpy(access_result, "Access denied");
+
+		return -1;
 	}
 
-	if (client_identify(id, network_addr) == -1) {
-		strcpy(network_addr, "Access denied");
-	} else {
-		add_active_client(id->name, network_addr);
+	int client_storage_id = get_first_availiable_client(network_storage_id);
+
+	if (client_storage_id == -1) {
+		strcpy(access_result, "Access denied");
+		puts("The network is full. No access given");
+		return -1;
 	}
 
-	size_t network_addr_len = strlen(network_addr);
+	add_active_client(id->name, access_result);
 
-	if (send(socket, &network_addr_len, sizeof(network_addr_len), 0) == -1) {
-		free(network_addr);
+	return client_storage_id;
+}
+
+int send_access_to_client(client_id* id, int socket, int network_storage_id, int* client_storage_id) {
+	char access_result[MAX_STORAGE];
+
+	*client_storage_id = get_client_access(id, network_storage_id, access_result);
+
+	size_t access_res_len = strlen(access_result);
+
+	if (send(socket, &access_res_len, sizeof(access_res_len), 0) == -1) {
 		goto error;
 	}	
 
-	if (send_all(socket, network_addr, strlen(network_addr)) == -1) {
-		free(network_addr);
+	if (send_all(socket, access_result, access_res_len) == -1) {
 		goto error;
 	}
-	
-	free(network_addr);
 
 	return SUCCESS;
 
 error:
 	printf("Error occured while sending access to client: %s\n", strerror(errno));
+	return FAILURE;
+}
+
+int get_first_availiable_client(int network_id) {
+	for (int i = 0; i < MAX_STORAGE; i++) {
+		if (available_client_in_nw[network_id][i] == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+int client_identification_process(int client_sock, int network_storage_id, hserver_config_t* server_param) {
+	client_id* id = get_client_id(client_sock);
+	if (id == NULL) {
+		goto error;
+	}
+
+	printf("Got client id: %s %s\n", id->name, id->password);
+
+	int client_storage_id;
+	if (send_access_to_client(id, client_sock, network_storage_id, &client_storage_id) == -1) {
+		free_client_id(id);
+		free(id);
+
+		goto error;
+	};		
+
+	if (client_storage_id != -1) {
+		char* tun_name = "server_tun";
+		char tun_id_str[10] = {};
+		sprintf(tun_id_str, "%d", client_storage_id);
+
+		char res_name[20];
+		snprintf(res_name, 20, "%s%s", tun_name, tun_id_str);
+		
+		int client_tun_sock = create_server_tun(res_name, server_param);
+
+		client_in_t* client_in = calloc(1, sizeof(client_in_t));
+		client_in->client_socket = client_sock;
+		client_in->tun_socket = client_tun_sock;
+
+		client_db[network_storage_id][client_storage_id] = client_in;
+		available_client_in_nw[network_storage_id][client_storage_id] = 1;
+	}
+
+	free_client_id(id);
+	free(id);
+
+	return SUCCESS;
+
+error:
+	printf("Error occured while running client identification process: %s\n", strerror(errno));
 	return FAILURE;
 }
 
@@ -255,37 +322,20 @@ int server_run(hserver_config_t *config) {
     while (true) {
 		struct sockaddr_in client;
 		socklen_t len = sizeof(client);
-		int socket = accept(server->sock, (struct sockaddr *)&client, &len);
+		int client_socket = accept(server->sock, (struct sockaddr *)&client, &len);
 
 		char s[INET6_ADDRSTRLEN];
         inet_ntop(AF_INET, &(((struct sockaddr_in*) &client)->sin_addr), s, sizeof(s));
 		printf("Got a connection from %s\n", s);
 
-		if (socket == -1) {
+		if (client_socket == -1) {
 			free(server);
 			goto error;
 		}
-		
-		client_id* id = get_client_id(socket);
-		if (id == NULL) {
-			server_close(server);
+
+		if (client_identification_process(client_socket, 0, config) == FAILURE) {
 			goto error;
 		}
-
-		printf("Got data: %s %s\n", id->name, id->password);
-
-		if (send_access_to_client(id, socket) == -1) {
-			free(id->name);
-			free(id->password);
-			free(id);
-
-			server_close(server);
-			goto error;
-		};		
-
-		free(id->name);
-		free(id->password);
-		free(id);
 
 		if (process_exited)
 			break;
@@ -303,4 +353,15 @@ error:
 void server_close(server_t *server) {
     close(server->sock);
 	free(server);
+	free_client_db();
+}
+
+void free_client_db() {
+	for (int i = 0; i < MAX_STORAGE; i++) {
+		for (int j = 0; j < MAX_STORAGE; j++) {
+			if (client_db[i][j] != NULL) {
+				free(client_db[i][j]);
+			}
+		}
+	}
 }

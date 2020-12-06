@@ -20,7 +20,8 @@ SRCS_CLIENT = \
 SRCS_SERVER = \
        project/src/server.c \
        project/src/server_main.c \
-       project/src/utils.c
+       project/src/utils.c \
+       project/src/tun.c
 
 .PHONY: all clean
 
@@ -30,7 +31,7 @@ client: $(SRCS_CLIENT)
 	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_CLIENT) $(CFLAGS) $(SRCS_CLIENT) -lm -I${includedir} -levent
 
 server: $(SRCS_SERVER)
-	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_SERVER) $(CFLAGS) $(SRCS_SERVER)
+	$(CC) -Wall -Wextra -Werror $(addprefix -I,$(HDRS)) -o $(TARGET_SERVER) $(CFLAGS) $(SRCS_SERVER) -I${includedir} -levent
 
 clean:
 	rm -rf $(TARGET_CLIENT) $(TARGET_SERVER)
