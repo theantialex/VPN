@@ -1,5 +1,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
+#include <event2/event.h>
+#include <event2/event-config.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -269,7 +272,7 @@ int get_first_availiable_client(int network_id) {
 	return -1;
 }
 
-int client_identification_process(int client_sock, int network_storage_id, hserver_config_t* server_param) {
+int client_identification_process(int client_sock, int network_storage_id, hserver_config_t* server_param, storage_id_t* clt_storage_id) {
 	client_id* id = get_client_id(client_sock);
 	if (id == NULL) {
 		goto error;
@@ -301,16 +304,103 @@ int client_identification_process(int client_sock, int network_storage_id, hserv
 
 		client_db[network_storage_id][client_storage_id] = client_in;
 		available_client_in_nw[network_storage_id][client_storage_id] = 1;
+
+		clt_storage_id->client_id = client_storage_id;
+		clt_storage_id->network_id = network_storage_id;
 	}
 
 	free_client_id(id);
 	free(id);
-
 	return SUCCESS;
 
 error:
 	printf("Error occured while running client identification process: %s\n", strerror(errno));
 	return FAILURE;
+}
+
+int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t* storage_id) {
+	int client_server_socket;
+	struct sockaddr_in client;
+	socklen_t len = sizeof(client);
+
+	fcntl(server_sock, F_SETFL, O_NONBLOCK);
+
+	if ((client_server_socket = accept(server_sock, NULL, NULL)) < 0){
+		return FAILURE;
+    }
+
+
+	char address_str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(((struct sockaddr_in*) &client)->sin_addr), address_str, sizeof(address_str));
+	printf("Got a connection from %s\n", address_str);
+
+	if (client_server_socket == -1) {
+		goto error;
+	}
+
+	if (client_identification_process(client_server_socket, 0, config, storage_id) == FAILURE) {
+		goto error;
+	}
+	return SUCCESS;
+
+error:
+    printf("Error occured while accepting event handler: %s\n", strerror(errno));
+	return FAILURE;
+}
+
+int event_anticipation(server_t* server, hserver_config_t *config) {
+	struct sockaddr_in client;
+	socklen_t len = sizeof(client);
+
+	struct event_base* base = event_base_new();
+	struct event_base* ev_base_arr[250];
+    if (!base) {
+        perror("base");
+        exit(1);
+    }
+
+	while(true) {
+		if (accept_event_handler(server->sock, config) == SUCCESS) {
+
+		}
+
+
+	}
+
+
+    // struct accept_param_s accept_param = { client, len};
+
+    // struct event* accept_event = event_new(base, server->sock, EV_READ | EV_PERSIST, (event_callback_fn)accept_event_handler, (void*)&accept_param);
+    // if (!accept_event) {
+    //     goto error;
+    // }
+
+    // if (event_add(accept_event, NULL) < 0) {
+    //     goto error;
+    // }
+
+    // struct recv_param_s recv_param = { tun_socket };
+    // struct event* recv_event = event_new(base, client_server_socket, EV_READ | EV_PERSIST, (event_callback_fn)recv_event_handler, (void*)&recv_param);
+    // if (!recv_event) {
+    //     goto error;
+    // }
+
+    // if (event_add(recv_event, NULL) < 0) {
+    //     goto error;
+    // }
+
+    // if (event_base_dispatch(base) < 0) {
+    //     goto error;
+    // }
+
+    // event_base_free(base);
+
+    return SUCCESS;
+
+error:
+    printf("Error occured while running event anticipation: %s\n", strerror(errno));
+	return FAILURE;
+
 }
 
 int server_run(hserver_config_t *config) {
@@ -322,6 +412,7 @@ int server_run(hserver_config_t *config) {
     while (true) {
 		struct sockaddr_in client;
 		socklen_t len = sizeof(client);
+
 		int client_socket = accept(server->sock, (struct sockaddr *)&client, &len);
 
 		char s[INET6_ADDRSTRLEN];
@@ -340,8 +431,6 @@ int server_run(hserver_config_t *config) {
 		if (process_exited)
 			break;
 
-		/*if (!client)
-			continue;*/
     }
     server_close(server);
     return SUCCESS;
