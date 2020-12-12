@@ -5,6 +5,8 @@
 #include <event2/event.h>
 #include <event2/event-config.h>
 
+#include <fcntl.h>
+
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -15,6 +17,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/select.h>
+
+#include <unistd.h>
 
 #include "client.h"
 #include "ip_parser.h"
@@ -123,15 +127,13 @@ int routing(network_addr_t* web_addr, char* name) {
     strcat(command, name);
     if (system(command) != 0) {
         puts(command);
+        return FAILURE;
     }
-    puts(command);
 
     return SUCCESS;
 }
 
-void recv_tun_event_handler(int tun_socket, short flags, struct recv_param_s* recv_tun_param) {
-    puts("Got something in tunnel recv event handler!");
-
+void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* recv_tun_param) {
     if (flags == 0) {
         perror("flags");
         exit(1);
@@ -139,10 +141,19 @@ void recv_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
 
     char buffer[BUFSIZE];
 
-    if (recv_all(tun_socket, BUFSIZE, buffer) == -1) {
-        perror("recv_all()");
+    fcntl(tun_socket, F_SETFL, O_NONBLOCK);
+
+    if (read(tun_socket, buffer, BUFSIZE) == -1) {
+        perror("read()");
         exit(1);
     }
+
+    if (strlen(buffer) == 0) {
+        return;
+    }
+
+    puts("Got something in tunnel recv event handler!");
+    puts(buffer);
 
     if (send_all(recv_tun_param->socket, buffer, strlen(buffer)) == -1) {
         perror("send_all()");
@@ -164,14 +175,14 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
         perror("recv_all()");
         exit(1);
     }
-
-    if (send_all(recv_clt_param->socket, buffer, strlen(buffer)) == -1) {
-        perror("send_all()");
+    if (write(recv_clt_param->socket, buffer, strlen(buffer)) == -1) {
+        perror("write()");
         exit(1);
     }
 }
 
 int event_anticipation(int tun_socket, int client_server_socket) {
+    
     struct event_base* base = event_base_new();
     if (!base) {
         goto error;
@@ -181,12 +192,12 @@ int event_anticipation(int tun_socket, int client_server_socket) {
 
     struct recv_param_s recv_tun_param = { client_server_socket };
 
-    struct event* recv_tun_event = event_new(base, tun_socket, EV_READ | EV_PERSIST, (event_callback_fn)recv_tun_event_handler, (void*)&recv_tun_param);
-    if (!recv_tun_event) {
+    struct event* read_tun_event = event_new(base, tun_socket, EV_READ | EV_PERSIST, (event_callback_fn)read_tun_event_handler, (void*)&recv_tun_param);
+    if (!read_tun_event) {
         goto error;
     }
 
-    if (event_add(recv_tun_event, NULL) < 0) {
+    if (event_add(read_tun_event, NULL) < 0) {
         goto error;
     }
 
