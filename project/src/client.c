@@ -21,7 +21,7 @@
 #include "tun.h"
 #include "utils.h"
 
-#define SERVER_PORT 80
+#define SERVER_PORT 6666
 #define SERVER_ADDRESS "127.0.0.1"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tun0"
@@ -110,67 +110,48 @@ error:
 	return FAILURE;
 }
 
-int routing(int post_sock, network_addr_t* web_addr, int* in_network) {
-    struct sockaddr_in dest_addr;
-    socklen_t dest_addr_len;
-    if (getsockname(post_sock, (struct sockaddr*)&dest_addr, &dest_addr_len) == -1) {
-        goto error;
-    }
+int routing(network_addr_t* web_addr, char* name) {
+    char command[255];
+    char str_mask[4];
 
-    *in_network = is_in_network(web_addr->network_addr, web_addr->mask, inet_ntoa(dest_addr.sin_addr));
+    strcpy(command, "ip route add ");
+    strcat(command, web_addr->network_addr);
+    strcat(command, "/");
+    sprintf(str_mask, "%d", web_addr->mask);
+    strcat(command, str_mask);
+    strcat(command, " dev ");
+    strcat(command, name);
+    if (system(command) != 0) {
+        puts(command);
+    }
+    puts(command);
 
     return SUCCESS;
-
-error:
-    printf("Error occured while routing: %s\n", strerror(errno));
-    return FAILURE;
 }
 
-void accept_event_handler(int tun_socket, short flags, struct accept_param_s* accept_param) {
-    puts("Got something in accept event handler!");
+void recv_tun_event_handler(int tun_socket, short flags, struct recv_param_s* recv_tun_param) {
+    puts("Got something in tunnel recv event handler!");
 
     if (flags == 0) {
         perror("flags");
         exit(1);
     }
 
-    int post_socket;
-    socklen_t remotelen;
-    struct sockaddr_in remote;
     char buffer[BUFSIZE];
 
-    remotelen = sizeof(remote);
-    memset(&remote, 0, remotelen);
-    if ((post_socket = accept(tun_socket, (struct sockaddr*)& remote, &remotelen)) < 0){
-        perror("accept()");
-        exit(1);
-    }
-    
-    if (recv_all(post_socket, BUFSIZE, buffer) == -1) {
+    if (recv_all(tun_socket, BUFSIZE, buffer) == -1) {
         perror("recv_all()");
         exit(1);
     }
 
-    printf("here: %c\n", buffer[0]);
-
-    //ROUTING
-    int in_network;
-    if (routing(post_socket, accept_param->web_addr, &in_network) == FAILURE) {
-        perror("routing()");
+    if (send_all(recv_tun_param->socket, buffer, strlen(buffer)) == -1) {
+        perror("send_all()");
         exit(1);
-    }
-
-    
-    if (in_network == SUCCESS) {
-        if (send_all(accept_param->client_server_sock, buffer, strlen(buffer)) == -1) {
-            perror("send_all()");
-            exit(1);
-        }
     }
 }
 
-void recv_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_param) {
-    puts("Got something in recv event handler!");
+void recv_clt_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_clt_param) {
+    puts("Got something in client recv event handler!");
 
     if (flags == 0) {
         perror("flags");
@@ -184,13 +165,13 @@ void recv_event_handler(int client_server_socket, short flags, struct recv_param
         exit(1);
     }
 
-    if (send_all(recv_param->tun_socket, buffer, strlen(buffer)) == -1) {
+    if (send_all(recv_clt_param->socket, buffer, strlen(buffer)) == -1) {
         perror("send_all()");
         exit(1);
     }
 }
 
-int event_anticipation(int tun_socket, int client_server_socket, network_addr_t* web_addr) {
+int event_anticipation(int tun_socket, int client_server_socket) {
     struct event_base* base = event_base_new();
     if (!base) {
         goto error;
@@ -198,24 +179,24 @@ int event_anticipation(int tun_socket, int client_server_socket, network_addr_t*
 
     puts("Start event anticipation...");
 
-    struct accept_param_s accept_param = { client_server_socket, web_addr };
+    struct recv_param_s recv_tun_param = { client_server_socket };
 
-    struct event* accept_event = event_new(base, tun_socket, EV_READ | EV_PERSIST, (event_callback_fn)accept_event_handler, (void*)&accept_param);
-    if (!accept_event) {
+    struct event* recv_tun_event = event_new(base, tun_socket, EV_READ | EV_PERSIST, (event_callback_fn)recv_tun_event_handler, (void*)&recv_tun_param);
+    if (!recv_tun_event) {
         goto error;
     }
 
-    if (event_add(accept_event, NULL) < 0) {
+    if (event_add(recv_tun_event, NULL) < 0) {
         goto error;
     }
 
-    struct recv_param_s recv_param = { tun_socket };
-    struct event* recv_event = event_new(base, client_server_socket, EV_READ | EV_PERSIST, (event_callback_fn)recv_event_handler, (void*)&recv_param);
-    if (!recv_event) {
+    struct recv_param_s recv_clt_param = { tun_socket };
+    struct event* recv_clt_event = event_new(base, client_server_socket, EV_READ | EV_PERSIST, (event_callback_fn)recv_clt_event_handler, (void*)&recv_clt_param);
+    if (!recv_clt_event) {
         goto error;
     }
 
-    if (event_add(recv_event, NULL) < 0) {
+    if (event_add(recv_clt_event, NULL) < 0) {
         goto error;
     }
 
@@ -271,10 +252,15 @@ int client_run(client_id* id) {
     char network_addr[255] = {};
     get_network_and_mask(get_addr, network_addr, &mask);
 
-    network_addr_t web_addr = { get_addr, mask };
+    network_addr_t web_addr = { network_addr, mask };
 
-    int tun_socket = create_client_tun(TUN_NAME);
-    if (event_anticipation(tun_socket, client->sock, &web_addr) == FAILURE) {
+    int tun_socket = create_client_tun(TUN_NAME, get_addr);
+
+    if (routing(&web_addr, TUN_NAME) == -1) {
+        goto error;
+    }
+
+    if (event_anticipation(tun_socket, client->sock) == FAILURE) {
         goto error;
     }
 

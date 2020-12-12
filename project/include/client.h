@@ -16,22 +16,18 @@ typedef struct {
     int mask;
 } network_addr_t;
 
-struct accept_param_s {
-    int client_server_sock;
-    network_addr_t* web_addr;
-};
-
 struct recv_param_s {
-    int tun_socket;
+    int socket;
 };
 
 client_t* client_create(int socket, client_id id);
 int send_id(client_t* client);
 char* get_response(client_t* client);
+int routing(network_addr_t* web_addr, char* tun_name);
 
-void accept_event_handler(int tun_socket, short flags, struct accept_param_s* accept_param);
-void recv_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_param);
-int event_anticipation(int tun_socket, int client_server_socket, network_addr_t* web_addr);
+void revc_tun_event_handler(int tun_socket, short flags, struct recv_param_s* recv_tun_param);
+void recv__clt_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_param);
+int event_anticipation(int tun_socket, int client_server_socket);
 
 int client_run(client_id* id);
 

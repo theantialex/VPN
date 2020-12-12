@@ -93,12 +93,10 @@ error:
 	return FAILURE;
 }
 
-int create_client_tun(char* if_name) {
+int create_client_tun(char* if_name, char* addr) {
   int tun_fd;
-  int sock_fd;
-  struct sockaddr_in address;
-  int optval = 1;
   debug = 1;
+  char command[255];
 
   if ( (tun_fd = tun_alloc(if_name, IFF_TUN)) < 0 ) {
     my_err("Error connecting to tun/tap interface %s!\n", if_name);
@@ -107,38 +105,32 @@ int create_client_tun(char* if_name) {
 
   do_debug("Successfully connected to interface %s\n", if_name);
 
-  if ( (sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket()");
-    exit(1);
+  strcpy(command, "ip a add ");
+  strcat(command, addr);
+  strcat(command, " dev ");
+  strcat(command, if_name);
+  if (system(command) != 0) {
+    my_err("Error adding tun/tap interface %s!\n", if_name);
   }
+  puts(command);
 
-  if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
-      perror("setsockopt()");
-      exit(1);
+  strcpy(command, "ip addr flush dev ");
+  strcat(command, if_name);
+  if (system(command) != 0) {
+    my_err("Error flushing tun/tap interface %s up!\n", if_name);
   }
+  puts(command);
 
-  memset(&address, 0, sizeof(address));
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = htonl(INADDR_ANY);
-  // PORT HERE 
-  address.sin_port = htons(0);
-  if (bind(sock_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
-      perror("bind()");
-      exit(1);
-  }
 
-  struct sockaddr_in sin;
-  socklen_t len = sizeof(sin);
-  if (getsockname(sock_fd, (struct sockaddr *)&sin, &len) != -1) {
-    printf("port number %d\n", ntohs(sin.sin_port));
+  strcpy(command, "ip link set dev ");
+  strcat(command, if_name);
+  strcat(command, " up");
+  if (system(command) != 0) {
+    my_err("Error setting tun/tap interface %s up!\n", if_name);
   }
-    
-  if (listen(sock_fd, 5) < 0) {
-      perror("listen()");
-      exit(1);
-  }
+  puts(command);
 
-  return sock_fd;
+  return tun_fd;
 }
 
 int create_server_tun(char* if_name, hserver_config_t* server_param) {

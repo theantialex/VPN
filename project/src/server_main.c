@@ -7,8 +7,8 @@ int main() {
 	hserver_config_t config = {
 		.root = "/var/www/",
 		.address = "127.0.0.1",
-		.port = 80,
-		.backlog = 128,
+		.port = 6666,
+		.backlog = 128
 		// .pidfile = "/var/run/hserver/hserver.pid",
 	};
 
