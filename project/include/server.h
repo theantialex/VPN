@@ -2,6 +2,7 @@
 #define PROJECT_INCLUDE_SERVER_H_
 
 #include "utils.h"
+#include <sys/socket.h>
 
 typedef struct {
 	int sock;
@@ -16,11 +17,6 @@ typedef struct {
 	int client_socket;
 	int tun_socket;
 } client_in_t;
-
-struct accept_param_s {
-	struct sockaddr_in address;
-	socklen_t length;
-};
 
 struct clt_recv_param_s {
 	int server_tun_socket;
@@ -42,13 +38,14 @@ int get_client_access(client_id* id, int network_storage_id, char* access_result
 int send_access_to_client(client_id* id, int socket, int network_storage_id, int* client_storage_id);
 int add_active_client(char* client_name, char* client_network);
 
-int client_identification_process(int client_sock, hserver_config_t* server_param, storage_id_t* clt_storage_id);
+int client_identification_process(int client_sock, int server_sock, hserver_config_t* server_param, storage_id_t* clt_storage_id);
 client_id* get_client_id(int socket);
 int client_identify(client_id* id, char* network_addr);
 
 int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t* clt_db_id);
-void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s params);
 int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t* storage_id);
+void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s* params);
+void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s* params);
 
 void free_client_db();
 

@@ -273,7 +273,7 @@ int get_first_availiable_client(int network_id) {
 	return -1;
 }
 
-int client_identification_process(int client_sock, hserver_config_t* server_param, storage_id_t* clt_db_id) {
+int client_identification_process(int client_sock, int server_sock, hserver_config_t* server_param, storage_id_t* clt_db_id) {
 	client_id* id = get_client_id(client_sock);
 	if (id == NULL) {
 		goto error;
@@ -292,16 +292,23 @@ int client_identification_process(int client_sock, hserver_config_t* server_para
 	if (client_storage_id != -1) {
 		char* tun_name = "server_tun";
 		char tun_id_str[10] = {};
+		int post_sock;
+
 		sprintf(tun_id_str, "%d", client_storage_id);
 
 		char res_name[20];
 		snprintf(res_name, 20, "%s%s", tun_name, tun_id_str);
 		
-		int client_tun_sock = create_server_tun(res_name, server_param);
+		int tun_origin_sock = create_server_tun(res_name, server_param);
+		if (tun_origin_sock == -1) {
+			goto error;
+		}
+		post_sock = accept(server_sock, NULL, NULL);
+		printf("post socket %d", post_sock);
 
 		client_in_t* client_in = calloc(1, sizeof(client_in_t));
 		client_in->client_socket = client_sock;
-		client_in->tun_socket = client_tun_sock;
+		client_in->tun_socket = post_sock;
 
 		client_db[clt_db_id->network_id][client_storage_id] = client_in;
 		available_client_in_nw[clt_db_id->network_id][client_storage_id] = 1;
@@ -324,7 +331,7 @@ int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t
 
 	fcntl(server_sock, F_SETFL, O_NONBLOCK);
 
-	if ((client_server_socket = accept(server_sock, NULL, NULL)) < 0){
+	if ((client_server_socket = accept(server_sock, NULL, NULL)) <= 0){
 		return FAILURE;
     }
 
@@ -336,7 +343,7 @@ int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t
 		goto error;
 	}
 
-	if (client_identification_process(client_server_socket, config, storage_id) == FAILURE) {
+	if (client_identification_process(client_server_socket, server_sock, config, storage_id) == FAILURE) {
 		goto error;
 	}
 	return SUCCESS;
@@ -346,7 +353,7 @@ error:
 	return FAILURE;
 }
 
-void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s params) {
+void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s* params) {
 	puts("Got something in clt_recv event handler!");
 
     if (flags == 0) {
@@ -361,13 +368,13 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
         exit(1);
     }
 
-    if (send_all(params.server_tun_socket, buffer, strlen(buffer)) == -1) {
+    if (send_all(params->server_tun_socket, buffer, strlen(buffer)) == -1) {
         perror("send_all()");
         exit(1);
     }
 }
 
-void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s params) {
+void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s* params) {
 	puts("Got something in tun_recv event handler!");
 
     if (flags == 0) {
@@ -382,15 +389,13 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
         exit(1);
     }
 
-    if (send_all(params.client_socket, buffer, strlen(buffer)) == -1) {
+    if (send_all(params->client_socket, buffer, strlen(buffer)) == -1) {
         perror("send_all()");
         exit(1);
     }
 }
 
 int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t* clt_db_id) {
-	struct sockaddr_in client;
-	socklen_t len = sizeof(client);
 	struct event_base* ev_base_arr[250];
 	int i = 0;
 	int j = 0;
@@ -417,7 +422,7 @@ int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t*
             }
 
 			struct tun_recv_param_s tun_param = { client_server_sock };
-			struct event* tun_recv_event = event_new(base, server->sock, EV_READ | EV_PERSIST, 
+			struct event* tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST, 
 			(event_callback_fn)tun_recv_event_handler, (void*)&tun_param);
 			if (!tun_recv_event) {
                 goto error;

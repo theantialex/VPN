@@ -220,8 +220,6 @@ int create_server_tun(char* if_name, hserver_config_t* server_param) {
     exit(1);
   }
 
-  do_debug("Successfully connected to interface %s\n", if_name);
-
   if ( (sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     perror("socket()");
     exit(1);
@@ -241,6 +239,7 @@ int create_server_tun(char* if_name, hserver_config_t* server_param) {
       perror("connect()");
       exit(1);
   }
+  do_debug("Successfully connected to interface %s\n", if_name);
 
   return sock_fd;
 }
