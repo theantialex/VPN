@@ -263,13 +263,14 @@ int client_run(client_id* id) {
     char network_addr[255] = {};
     get_network_and_mask(get_addr, network_addr, &mask);
 
-    network_addr_t web_addr = { network_addr, mask };
+    // network_addr_t web_addr = { network_addr, mask };
 
     int tun_socket = create_client_tun(TUN_NAME, get_addr);
 
-    if (routing(&web_addr, TUN_NAME) == -1) {
-        goto error;
-    }
+
+    // if (routing(&web_addr, TUN_NAME) == -1) {
+    //     goto error;
+    // }
 
     if (event_anticipation(tun_socket, client->sock) == FAILURE) {
         goto error;

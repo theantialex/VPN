@@ -113,12 +113,11 @@ int create_client_tun(char* if_name, char* addr) {
     my_err("Error adding tun/tap interface %s!\n", if_name);
   }
 
-  strcpy(command, "ip addr flush dev ");
-  strcat(command, if_name);
-  if (system(command) != 0) {
-    my_err("Error flushing tun/tap interface %s up!\n", if_name);
-  }
-
+  // strcpy(command, "ip addr flush dev ");
+  // strcat(command, if_name);
+  // if (system(command) != 0) {
+  //   my_err("Error flushing tun/tap interface %s up!\n", if_name);
+  // }
 
   strcpy(command, "ip link set dev ");
   strcat(command, if_name);
