@@ -285,6 +285,8 @@ int client_identification_process(int client_sock, int network_storage_id, hserv
 		goto error;
 	};		
 
+	// Safety
+
 	if (client_storage_id != -1) {
 		char* tun_name = "server_tun";
 		char tun_id_str[10] = {};
