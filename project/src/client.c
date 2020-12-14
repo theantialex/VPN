@@ -140,22 +140,28 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
     }
 
     char buffer[BUFSIZE];
+    char* ip_packet = calloc(BUFSIZE, sizeof(char));
+    int packet_len = 0;
 
     fcntl(tun_socket, F_SETFL, O_NONBLOCK);
 
-    if (read(tun_socket, buffer, BUFSIZE) == -1) {
+    int n = read(tun_socket, buffer, BUFSIZE);
+    if (n == -1) {
         perror("read()");
         exit(1);
     }
+    puts("Got something in tunnel recv event handler!");
+    strncpy(ip_packet, buffer, n);
+    packet_len += n;
 
-    if (strlen(buffer) == 0) {
-        return;
+    while (n != -1) {
+        n = read(tun_socket, buffer, BUFSIZE);
+        strncat(ip_packet, buffer, n);
+        packet_len += n;
     }
 
-    puts("Got something in tunnel recv event handler!");
-    puts(buffer);
-
-    if (send_all(recv_tun_param->socket, buffer, strlen(buffer)) == -1) {
+    printf("ip p = %d\n", packet_len);
+    if (send_all(recv_tun_param->socket, ip_packet, packet_len) == -1) {
         perror("send_all()");
         exit(1);
     }

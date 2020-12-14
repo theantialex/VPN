@@ -113,12 +113,6 @@ int create_client_tun(char* if_name, char* addr) {
     my_err("Error adding tun/tap interface %s!\n", if_name);
   }
 
-  // strcpy(command, "ip addr flush dev ");
-  // strcat(command, if_name);
-  // if (system(command) != 0) {
-  //   my_err("Error flushing tun/tap interface %s up!\n", if_name);
-  // }
-
   strcpy(command, "ip link set dev ");
   strcat(command, if_name);
   strcat(command, " up");
@@ -129,7 +123,7 @@ int create_client_tun(char* if_name, char* addr) {
   return tun_fd;
 }
 
-int create_server_tun(char* if_name, hserver_config_t* server_param) {
+int create_server_tun(char* if_name, hserver_config_t* server_param, char* addr) {
   int tun_fd;
   int sock_fd;
   struct sockaddr_in address;
@@ -151,6 +145,22 @@ int create_server_tun(char* if_name, hserver_config_t* server_param) {
   if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
       perror("setsockopt()");
       exit(1);
+  }
+
+  char command[255];
+  strcpy(command, "ip a add ");
+  strcat(command, addr);
+  strcat(command, " dev ");
+  strcat(command, if_name);
+  if (system(command) != 0) {
+    my_err("Error adding tun/tap interface %s!\n", if_name);
+  }
+
+  strcpy(command, "ip link set dev ");
+  strcat(command, if_name);
+  strcat(command, " up");
+  if (system(command) != 0) {
+    my_err("Error setting tun/tap interface %s up!\n", if_name);
   }
 
   memset(&address, 0, sizeof(address));

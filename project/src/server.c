@@ -293,7 +293,9 @@ int client_identification_process(int client_sock, int network_storage_id, hserv
 		char res_name[20];
 		snprintf(res_name, 20, "%s%s", tun_name, tun_id_str);
 		
-		int client_tun_sock = create_server_tun(res_name, server_param);
+		char access_res[MAX_STORAGE];
+		get_client_access(id, network_storage_id, access_res);
+		int client_tun_sock = create_server_tun(res_name, server_param, access_res);
 
 		client_in_t* client_in = calloc(1, sizeof(client_in_t));
 		client_in->client_socket = client_sock;
