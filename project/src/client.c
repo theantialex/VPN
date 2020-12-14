@@ -161,8 +161,8 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
     }
 
     printf("ip p = %d\n", packet_len);
-    if (send_all(recv_tun_param->socket, ip_packet, packet_len) == -1) {
-        perror("send_all()");
+    if (send(recv_tun_param->socket, ip_packet, packet_len, 0) == -1) {
+        perror("send()");
         exit(1);
     }
 }

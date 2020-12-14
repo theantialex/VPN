@@ -1,5 +1,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
+#include <event2/event.h>
+#include <event2/event-config.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -14,6 +17,7 @@
 #define active_clients_fpath "./project/data/active_clients.txt"
 #define config_fpath "./project/data/config.txt"
 #define MAX_STORAGE 250
+#define BUFSIZE 2000
 
 volatile int process_exited = 0;
 
@@ -269,7 +273,7 @@ int get_first_availiable_client(int network_id) {
 	return -1;
 }
 
-int client_identification_process(int client_sock, int network_storage_id, hserver_config_t* server_param) {
+int client_identification_process(int client_sock, int server_sock, hserver_config_t* server_param, storage_id_t* clt_db_id) {
 	client_id* id = get_client_id(client_sock);
 	if (id == NULL) {
 		goto error;
@@ -278,33 +282,42 @@ int client_identification_process(int client_sock, int network_storage_id, hserv
 	printf("Got client id: %s %s\n", id->name, id->password);
 
 	int client_storage_id;
-	if (send_access_to_client(id, client_sock, network_storage_id, &client_storage_id) == -1) {
+	if (send_access_to_client(id, client_sock, clt_db_id->network_id, &client_storage_id) == -1) {
 		free_client_id(id);
 		free(id);
 
 		goto error;
-	};		
-
-	// Safety
+	};
 
 	if (client_storage_id != -1) {
 		char* tun_name = "server_tun";
 		char tun_id_str[10] = {};
+		int post_sock;
 		sprintf(tun_id_str, "%d", client_storage_id);
 
 		char res_name[20];
 		snprintf(res_name, 20, "%s%s", tun_name, tun_id_str);
 		
 		char access_res[MAX_STORAGE];
-		get_client_access(id, network_storage_id, access_res);
-		int client_tun_sock = create_server_tun(res_name, server_param, access_res);
+		get_client_access(id, clt_db_id->network_id, access_res);
+
+		int tun_origin_sock = create_server_tun(res_name, server_param, access_res);
+		if (tun_origin_sock == -1) {
+			goto error;
+		}
+
+		post_sock = accept(server_sock, NULL, NULL);
 
 		client_in_t* client_in = calloc(1, sizeof(client_in_t));
 		client_in->client_socket = client_sock;
-		client_in->tun_socket = client_tun_sock;
 
-		client_db[network_storage_id][client_storage_id] = client_in;
-		available_client_in_nw[network_storage_id][client_storage_id] = 1;
+		client_in->tun_socket = post_sock;
+
+		clt_db_id->client_id = client_storage_id;
+
+		client_db[clt_db_id->network_id][clt_db_id->client_id] = client_in;
+		available_client_in_nw[clt_db_id->network_id][client_storage_id] = 1;
+
 	}
 
 	free_client_id(id);
@@ -317,36 +330,189 @@ error:
 	return FAILURE;
 }
 
+int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t* storage_id) {
+	int client_server_socket;
+
+	// fcntl(server_sock, F_SETFL, O_NONBLOCK);
+
+	struct sockaddr_in client;
+	socklen_t len = sizeof(client);
+	if ((client_server_socket = accept(server_sock, (struct sockaddr *)&client, &len)) <= 0){
+		return FAILURE;
+    }
+
+	char s[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(((struct sockaddr_in*) &client)->sin_addr), s, sizeof(s));
+	printf("Got a connection from %s\n", s);
+
+	if (client_server_socket == -1) {
+		goto error;
+	}
+
+	if (client_identification_process(client_server_socket, server_sock, config, storage_id) == FAILURE) {
+		goto error;
+	}
+	return SUCCESS;
+
+error:
+    printf("Error occured while accepting event handler: %s\n", strerror(errno));
+	return FAILURE;
+}
+
+void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s* params) {
+	puts("Got something in clt_recv event handler!");
+
+    if (flags == 0) {
+        perror("flags");
+        exit(1);
+    }
+
+    char buffer[BUFSIZE];
+
+    if (recv_all(client_server_socket, BUFSIZE, buffer) == -1) {
+        perror("recv_all()");
+        exit(1);
+    }
+	printf("Received %zu of data\n", strlen(buffer));
+
+    if (send_all(params->server_tun_socket, buffer, strlen(buffer)) == -1) {
+        perror("send_all()");
+        exit(1);
+    }
+}
+
+void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s* params) {
+	puts("Got something in tun_recv event handler!");
+
+    if (flags == 0) {
+        perror("flags");
+        exit(1);
+    }
+
+    char buffer[BUFSIZE];
+
+    if (recv_all(tun_socket, BUFSIZE, buffer) == -1) {
+        perror("recv_all()");
+        exit(1);
+    }
+
+    if (send_all(params->client_socket, buffer, strlen(buffer)) == -1) {
+        perror("send_all()");
+        exit(1);
+    }
+}
+
+int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t* clt_db_id) {
+	// struct event_base* ev_base_arr[250];
+	// int i = 0;
+	// int j = 0;
+
+	if (accept_event_handler(server->sock, config, clt_db_id) == SUCCESS) {
+
+		int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
+		int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
+
+		struct event_base* base = event_base_new();
+		if (!base) {
+			perror("base");
+			exit(1);
+		}
+
+		struct clt_recv_param_s clt_param = { tunnel_sock };
+
+		struct event* clt_recv_event = event_new(base, client_server_sock,  EV_READ | EV_PERSIST, 
+		(event_callback_fn)client_recv_event_handler, (void*)&clt_param);
+		if (!clt_recv_event) {
+			goto error;
+		}
+		if (event_add(clt_recv_event, NULL) < 0) {
+			goto error;
+		}
+
+		struct tun_recv_param_s tun_param = { client_server_sock };
+		struct event* tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST, 
+		(event_callback_fn)tun_recv_event_handler, (void*)&tun_param);
+		if (!tun_recv_event) {
+			goto error;
+		}
+		if (event_add(tun_recv_event, NULL) < 0) {
+			goto error;
+		}
+
+		if (event_base_dispatch(base) < 0) {
+			goto error;
+		}
+
+		event_base_free(base);
+	} else {
+		goto error;
+	}
+	// while(true) {
+	// 	if (accept_event_handler(server->sock, config, clt_db_id) == SUCCESS) {
+
+	// 		int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
+	// 		int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
+
+	// 		struct event_base* base = event_base_new();
+	// 		if (!base) {
+    //             perror("base");
+    //             exit(1);
+    //         }
+
+	// 		struct clt_recv_param_s clt_param = { tunnel_sock };
+
+	// 		struct event* clt_recv_event = event_new(base, client_server_sock,  EV_READ | EV_PERSIST, 
+	// 		(event_callback_fn)client_recv_event_handler, (void*)&clt_param);
+	// 		if (!clt_recv_event) {
+    //             goto error;
+    //         }
+	// 		if (event_add(clt_recv_event, NULL) < 0) {
+    //             goto error;
+    //         }
+
+	// 		struct tun_recv_param_s tun_param = { client_server_sock };
+	// 		struct event* tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST, 
+	// 		(event_callback_fn)tun_recv_event_handler, (void*)&tun_param);
+	// 		if (!tun_recv_event) {
+    //             goto error;
+    //         }
+	// 		if (event_add(tun_recv_event, NULL) < 0) {
+    //             goto error;
+    //         }
+
+	// 		ev_base_arr[i] = base;
+	// 		i++;
+	// 	}
+	// 	j = 0;
+	// 	while(j < i) {
+	// 		if (ev_base_arr[j] != NULL) {
+	// 			event_base_loop(ev_base_arr[j], EVLOOP_NONBLOCK | EVLOOP_ONCE);
+	// 		}
+	// 		j++;
+	// 	}
+	// }
+
+    return SUCCESS;
+
+error:
+    printf("Error occured while running event anticipation: %s\n", strerror(errno));
+	return FAILURE;
+
+}
+
 int server_run(hserver_config_t *config) {
-    server_t* server = server_create(config);
+   server_t* server = server_create(config);
 	if (server == NULL) {
 		goto error;
 	}
 
-    while (true) {
-		struct sockaddr_in client;
-		socklen_t len = sizeof(client);
-		int client_socket = accept(server->sock, (struct sockaddr *)&client, &len);
+	// Get actual network id in later realisation
+	storage_id_t client_db_id = {0,-1};
 
-		char s[INET6_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(((struct sockaddr_in*) &client)->sin_addr), s, sizeof(s));
-		printf("Got a connection from %s\n", s);
+	if (event_anticipation(server, config, &client_db_id) == FAILURE) {
+		goto error;
+	}
 
-		if (client_socket == -1) {
-			free(server);
-			goto error;
-		}
-
-		if (client_identification_process(client_socket, 0, config) == FAILURE) {
-			goto error;
-		}
-
-		if (process_exited)
-			break;
-
-		/*if (!client)
-			continue;*/
-    }
     server_close(server);
     return SUCCESS;
 
