@@ -400,59 +400,20 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
         perror("read()");
         exit(1);
     }
+	printf("Received %d of data\n", n);
 
 	int m = write(params->client_socket, buffer, n);
     if (m == -1) {
         perror("write()");
         exit(1);
     }
+	printf("Sent %d of data\n", m);
 }
 
 int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t* clt_db_id) {
 	struct event_base* ev_base_arr[250];
 	int i = 0;
 	int j = 0;
-
-	// if (accept_event_handler(server->sock, config, clt_db_id) == SUCCESS) {
-
-	// 	int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
-	// 	int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
-
-	// 	struct event_base* base = event_base_new();
-	// 	if (!base) {
-	// 		perror("base");
-	// 		exit(1);
-	// 	}
-
-	// 	struct clt_recv_param_s clt_param = { tunnel_sock };
-
-	// 	struct event* clt_recv_event = event_new(base, client_server_sock,  EV_READ | EV_PERSIST, 
-	// 	(event_callback_fn)client_recv_event_handler, (void*)&clt_param);
-	// 	if (!clt_recv_event) {
-	// 		goto error;
-	// 	}
-	// 	if (event_add(clt_recv_event, NULL) < 0) {
-	// 		goto error;
-	// 	}
-
-	// 	struct tun_recv_param_s tun_param = { client_server_sock };
-	// 	struct event* tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST, 
-	// 	(event_callback_fn)tun_recv_event_handler, (void*)&tun_param);
-	// 	if (!tun_recv_event) {
-	// 		goto error;
-	// 	}
-	// 	if (event_add(tun_recv_event, NULL) < 0) {
-	// 		goto error;
-	// 	}
-
-	// 	if (event_base_dispatch(base) < 0) {
-	// 		goto error;
-	// 	}
-
-	// 	event_base_free(base);
-	// } else {
-	// 	goto error;
-	// }
 
 	while(true) {
 		if (accept_event_handler(server->sock, config, clt_db_id) == SUCCESS) {
