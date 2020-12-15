@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define SERVER_PORT 6666
-#define SERVER_ADDRESS "127.0.0.1"
+#define SERVER_ADDRESS "192.168.1.63"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tun0"
 #define BUFSIZE 2000
