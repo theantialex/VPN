@@ -334,7 +334,7 @@ error:
 int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t* storage_id) {
 	int client_server_socket;
 
-	// fcntl(server_sock, F_SETFL, O_NONBLOCK);
+	fcntl(server_sock, F_SETFL, O_NONBLOCK);
 
 	struct sockaddr_in client;
 	socklen_t len = sizeof(client);
@@ -372,16 +372,17 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
 
 	int n = read(client_server_socket, buffer, BUFSIZE);
     if (n == -1) {
-        perror("recv_all()");
+        perror("read()");
         exit(1);
     }
 	printf("Received %d of data\n", n);
 
 	int m = write(params->server_tun_socket, buffer, n);
     if (m == -1) {
-        perror("send_all()");
+        perror("write()");
         exit(1);
     }
+	printf("Sent %d of data\n", m);
 }
 
 void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s* params) {
@@ -394,13 +395,15 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 
     char buffer[BUFSIZE];
 
-    if (recv_all(tun_socket, BUFSIZE, buffer) == -1) {
-        perror("recv_all()");
+	int n = read(tun_socket, buffer, BUFSIZE);
+    if (n == -1) {
+        perror("read()");
         exit(1);
     }
 
-    if (send_all(params->client_socket, buffer, strlen(buffer)) == -1) {
-        perror("send_all()");
+	int m = write(params->client_socket, buffer, n);
+    if (m == -1) {
+        perror("write()");
         exit(1);
     }
 }
@@ -450,6 +453,7 @@ int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t*
 	// } else {
 	// 	goto error;
 	// }
+
 	while(true) {
 		if (accept_event_handler(server->sock, config, clt_db_id) == SUCCESS) {
 
@@ -490,6 +494,7 @@ int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t*
 		while(j < i) {
 			if (ev_base_arr[j] != NULL) {
 				event_base_loop(ev_base_arr[j], EVLOOP_NONBLOCK | EVLOOP_ONCE);
+				// printf("loop %d\n", j);
 			}
 			j++;
 		}
