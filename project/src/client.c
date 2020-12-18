@@ -26,7 +26,7 @@
 #include "utils.h"
 
 #define SERVER_PORT 6666
-#define SERVER_ADDRESS "192.168.1.63"
+// #define SERVER_ADDRESS "192.168.1.103"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tun0"
 #define BUFSIZE 2000
@@ -94,11 +94,11 @@ error:
 	return NULL;
 }
 
-int connect_to_server(int sock) {
+int connect_to_server(int sock, char* server_addr) {
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(SERVER_PORT);
-    if (inet_aton(SERVER_ADDRESS, &dest_addr.sin_addr) == 0) {
+    if (inet_aton(server_addr, &dest_addr.sin_addr) == 0) {
         goto error;
     }
 
@@ -230,7 +230,7 @@ error:
 	return FAILURE;
 }
 
-int client_run(client_id* id) {
+int client_run(client_id* id, char* server_addr) {
     int clt_socket;
     clt_socket  = socket(AF_INET, SOCK_STREAM, 0);
     if (clt_socket == -1) {
@@ -246,7 +246,7 @@ int client_run(client_id* id) {
     puts("Client created");
 
 
-    if (connect_to_server(client->sock) == FAILURE) {
+    if (connect_to_server(client->sock, server_addr) == FAILURE) {
         goto error;
     }
 

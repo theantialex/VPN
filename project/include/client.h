@@ -29,6 +29,8 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
 void recv__clt_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_param);
 int event_anticipation(int tun_socket, int client_server_socket);
 
-int client_run(client_id* id);
+int connect_to_server(int sock, char* server_addr);
+
+int client_run(client_id* id, char* server_addr);
 
 #endif  // PROJECT_INCLUDE_CLIENT_H_
