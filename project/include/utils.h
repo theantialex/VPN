@@ -3,9 +3,11 @@
 
 #define FAILURE -1
 #define SUCCESS 0
+#define MAX_STORAGE 250
 
 #include <stdint.h>
 #include <stdio.h>
+
 
 typedef struct {
 	char *root;
@@ -19,6 +21,11 @@ typedef struct {
 	char* name;
     char* password;
 } client_id;
+
+typedef struct {
+	char* name;
+	char* password;
+} network_id_t;
 
 int send_all(int sock, char* str, int len);
 int recv_all(int sock, int len , char* result_str);
