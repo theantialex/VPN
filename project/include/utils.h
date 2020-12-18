@@ -4,6 +4,10 @@
 #define FAILURE -1
 #define SUCCESS 0
 #define MAX_STORAGE 250
+#define CREATE_CMD "create"
+#define CONNECT_CMD "connect"
+#define LEAVE_CMD "leave"
+#define DELETE_CMD "delete"
 
 #include <stdint.h>
 #include <stdio.h>

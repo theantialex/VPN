@@ -68,6 +68,13 @@ server_t* server_create(hserver_config_t *config) {
 
 	server->sock = sock;
 
+	FILE* config_file = fopen(config_fpath, "w");
+	if (config_file == NULL) {
+		free(server);
+		goto error;
+	}
+	fclose(config_file);
+
 	FILE* active_clients_file = fopen(active_clients_fpath, "w");
 	if (active_clients_file == NULL) {
 		free(server);
@@ -269,6 +276,15 @@ int get_first_availiable_client(int network_id) {
 	return -1;
 }
 
+int get_first_availiable_network() {
+	for (int i = 0; i < MAX_STORAGE; i++) {
+		if (get_first_availiable_client(i) == -1) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 int client_identification_process(int client_sock, int server_sock, hserver_config_t* server_param, storage_id_t* clt_db_id) {
 	client_id* id = get_client_id(client_sock);
 	if (id == NULL) {
@@ -326,7 +342,100 @@ error:
 	return FAILURE;
 }
 
-int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t* storage_id) {
+int add_network(network_id_t net_id) {
+	FILE* config_file = fopen(config_fpath, "a+");
+	if (config_file == NULL) {
+		goto error;
+	}
+
+	int net_storage_id = get_first_availiable_network();
+	if (net_storage_id == -1) {
+		puts("Server is full. Can't allocate network");
+		return FAILURE;
+	}
+
+	char net_sid_str[10];
+	sprintf(net_sid_str, "%d", net_storage_id);
+
+	char network_addr[MAX_STORAGE] = {};
+	strcat(network_addr, "10.");
+	strcat(network_addr, net_sid_str);
+	strcat(network_addr, ".0.0.0/24");
+
+	if (fprintf(config_file, "%s %s %s\n", net_id.name, net_id.password, network_addr) < 0) {
+		fclose(config_file);
+		goto error;
+	}
+
+	available_network[net_storage_id] = 1;
+
+	fclose(config_file);
+	return SUCCESS;
+
+error:
+	printf("Error occured while adding active client: %s\n", strerror(errno));
+	return FAILURE;
+}
+
+char* process_cmd(int sock) {
+	int cmd_len;
+	if (recv(sock, &cmd_len, sizeof(cmd_len), 0) == -1) {
+		goto error;
+	}
+	char* cmd = (char*) calloc(cmd_len, sizeof(char));
+	if (cmd == NULL) {
+		goto error;
+	}
+	if (recv_all(sock, cmd_len, cmd) == -1) {
+		free(cmd);
+		goto error;
+	}
+
+
+	network_id_t net_id;
+	int net_name_len;
+	if (recv(sock, &net_name_len, sizeof(net_name_len), 0) == -1) {
+		goto error;
+	}
+
+	net_id.name = calloc(MAX_STORAGE, sizeof(char));
+	if (recv_all(sock, net_name_len, net_id.name) == -1) {
+		goto error;
+	}
+
+	int net_pswd_len;
+	if (recv(sock, &net_pswd_len, sizeof(net_pswd_len), 0) == -1) {
+		goto error;
+	}
+
+	net_id.password = calloc(MAX_STORAGE, sizeof(char));
+	if (recv_all(sock, net_pswd_len, net_id.password) == -1) {
+		goto error;
+	}
+	int id_len;
+	if (recv(sock, &id_len, sizeof(id_len), 0) == -1) {
+		goto error;
+	}
+
+	char* response = calloc(MAX_STORAGE, sizeof(char));
+
+	if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0) {
+		if (add_network(net_id) == FAILURE) {
+			strcpy(response, "Can't allocate network");
+		} else {
+			strcpy(response, "Network succesfully allocated");
+		}
+		//TODO: bridge creation
+	}
+
+	return response;
+
+error:
+	printf("Error occured while getting client id: %s\n", strerror(errno));
+	return NULL;
+}
+
+int accept_event_handler(int server_sock) {
 	int client_server_socket;
 
 	fcntl(server_sock, F_SETFL, O_NONBLOCK);
@@ -345,7 +454,7 @@ int accept_event_handler(int server_sock, hserver_config_t *config, storage_id_t
 		goto error;
 	}
 
-	if (client_identification_process(client_server_socket, server_sock, config, storage_id) == FAILURE) {
+	if (process_cmd(client_server_socket) == NULL) {
 		goto error;
 	}
 	return SUCCESS;
@@ -405,13 +514,13 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 	printf("Sent %d of data\n", m);
 }
 
-int event_anticipation(server_t* server, hserver_config_t *config, storage_id_t* clt_db_id) {
+int event_anticipation(server_t* server, storage_id_t* clt_db_id) {
 	struct event_base* ev_base_arr[250];
 	int i = 0;
 	int j = 0;
 
 	while(true) {
-		if (accept_event_handler(server->sock, config, clt_db_id) == SUCCESS) {
+		if (accept_event_handler(server->sock) == SUCCESS) {
 
 			int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
 			int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
@@ -473,7 +582,7 @@ int server_run(hserver_config_t *config) {
 	// Get actual network id in later realisation
 	storage_id_t client_db_id = {0,-1};
 
-	if (event_anticipation(server, config, &client_db_id) == FAILURE) {
+	if (event_anticipation(server, &client_db_id) == FAILURE) {
 		goto error;
 	}
 

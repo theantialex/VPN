@@ -33,11 +33,6 @@
 #define TUN_NAME "tun0"
 #define BUFSIZE 2000
 
-#define CREATE_CMD "create"
-#define CONNECT_CMD "connect"
-#define LEAVE_CMD "leave"
-#define DELETE_CMD "delete"
-
 client_t* client_create(int socket, network_id_t net_id) {
     client_t* client = calloc(1, sizeof(*client));
     if (client == NULL) {

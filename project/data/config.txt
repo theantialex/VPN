@@ -1,3 +1,0 @@
-anna 12345 10.0.0.1/24
-sasha princess 10.0.0.2/24
-myatka melissa 10.0.0.3/24
