@@ -19,20 +19,20 @@
 #define MAX_STORAGE 250
 #define BUFSIZE 2000
 
-volatile int process_exited = 0;
+// volatile int process_exited = 0;
 
 static client_in_t* client_db[MAX_STORAGE][MAX_STORAGE] = {};
 
 int available_client_in_nw[MAX_STORAGE][MAX_STORAGE] = {};
 int available_network[MAX_STORAGE] = {};
 
-static void sigterm_handler(int signum) {
-	if (signum) {
-		process_exited = 1;
-	} else {
-		process_exited = 1;
-	}
-}
+// static void sigterm_handler(int signum) {
+// 	if (signum) {
+// 		process_exited = 1;
+// 	} else {
+// 		process_exited = 1;
+// 	}
+// }
 
 server_t* server_create(hserver_config_t *config) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -51,10 +51,6 @@ server_t* server_create(hserver_config_t *config) {
 	addr.sin_addr.s_addr = INADDR_ANY;
 
 	puts("Server created");
-
-	// if (inet_aton(, &addr.sin_addr) == -1) {
-	// 	goto error; 
-	// }
 
 	if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
 		goto error;
@@ -78,7 +74,6 @@ server_t* server_create(hserver_config_t *config) {
 		goto error;
 	}
 	fclose(active_clients_file);
-	
 	return server;
 
 error:
@@ -87,19 +82,19 @@ error:
 	return NULL;
 }
 
-int process_setup_signals() {
-	struct sigaction action = {0};
-	action.sa_handler = sigterm_handler;
-	if (sigaction(SIGTERM, &action, NULL) == -1) {
-		goto error;
-	}
+// int process_setup_signals() {
+// 	struct sigaction action = {0};
+// 	action.sa_handler = sigterm_handler;
+// 	if (sigaction(SIGTERM, &action, NULL) == -1) {
+// 		goto error;
+// 	}
 
-	return SUCCESS;
+// 	return SUCCESS;
 
-error:
-	printf("Error occured while setting up signals: %s\n", strerror(errno));
-	return FAILURE;
-}
+// error:
+// 	printf("Error occured while setting up signals: %s\n", strerror(errno));
+// 	return FAILURE;
+// }
 
 int client_identify(client_id* id, char* network_addr) {
 	FILE* config_file = fopen(config_fpath, "r");
