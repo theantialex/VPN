@@ -40,7 +40,7 @@ int send_access_to_client(client_id* id, int socket, int network_storage_id, int
 
 int client_identification_process(int client_sock, int server_sock, hserver_config_t* server_param, storage_id_t* clt_storage_id);
 
-int client_identify(client_id* id, char* network_addr);
+int client_identify(network_id_t* id, char* network_addr);
 int add_active_client(char* client_name, char* client_network);
 
 void free_client_db();

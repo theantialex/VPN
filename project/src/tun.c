@@ -123,7 +123,7 @@ int create_client_tun(char* if_name, char* addr) {
   return tun_fd;
 }
 
-int create_server_tun(char* if_name, hserver_config_t* server_param, char* addr) {
+int create_server_tun(char* if_name, char* addr) {
   int tun_fd;
   int sock_fd;
   struct sockaddr_in address;
@@ -165,8 +165,8 @@ int create_server_tun(char* if_name, hserver_config_t* server_param, char* addr)
 
   memset(&address, 0, sizeof(address));
   address.sin_family = AF_INET;
-  address.sin_addr.s_addr = inet_addr(server_param->address);
-  address.sin_port = htons(server_param->port);
+  address.sin_addr.s_addr = inet_addr("127.0.0.1");
+  address.sin_port = htons(6666);
   
   if (connect(sock_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
       perror("connect()");

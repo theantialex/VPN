@@ -12,6 +12,6 @@ void my_err(char* msg, ...);
 void usage(void);
 
 int create_client_tun(char* if_name, char* addr);
-int create_server_tun(char* if_name, hserver_config_t* server_param, char* addr);
+int create_server_tun(char* if_name, char* addr);
 
 #endif  // PROJECT_INCLUDE_SERVER_H_
