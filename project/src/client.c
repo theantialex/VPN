@@ -323,7 +323,7 @@ int get_server_addr(network_id_t* net_id, char server_addr[MAX_STORAGE]) {
 int network_creation_response(char* response) {
     if (strncmp(response, CREATE_SUCCESS, strlen(response)) != 0) {
             return FAILURE;
-        }
+    }
     return SUCCESS;
 }
 
@@ -364,11 +364,11 @@ error:
 }
 
 int cmd_choice(char* cmd, char* response, int socket) {
-    if (strncpy(cmd, CREATE_CMD, strlen(cmd)) == 0) {
+    if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0) {
         return network_creation_response(response);
     }
 
-    if (strncpy(cmd, CONNECT_CMD, strlen(cmd)) == 0) {
+    if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0) {
         if (set_connection_process(response, socket) == FAILURE) {
             puts("Error occured while setting connection");
             return FAILURE;
@@ -418,7 +418,6 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
     if (get_cmd_response(client->sock, response) == FAILURE) {
         goto error;
     }
-    printf("Responce received: %s\n", response);
 
     if (cmd_choice(cmd, response, client->sock) == FAILURE) {
         goto error;
