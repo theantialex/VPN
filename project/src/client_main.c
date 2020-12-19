@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[]) {
 
-    if (argc < 5) {
+    if (argc < 4) {
         return -1;
     }
 

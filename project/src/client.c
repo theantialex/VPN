@@ -112,10 +112,11 @@ client_t* client_create(int socket, network_id_t net_id) {
 // 	return NULL;
 // }
 
-int connect_to_server(int sock, char* server_addr) {
+int connect_to_server(int sock, char server_addr[MAX_STORAGE]) {
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(SERVER_PORT);
+    printf("%s %ld %d\n", server_addr, strlen(server_addr), server_addr[strlen(server_addr)-1]);
     if (inet_aton(server_addr, &dest_addr.sin_addr) == 0) {
         goto error;
     }
@@ -248,7 +249,7 @@ error:
 	return FAILURE;
 }
 
-int client_save_data(network_id_t net_id, char* server_addr) {
+int client_save_data(network_id_t net_id, char server_addr[MAX_STORAGE]) {
     FILE* net_config_file = fopen(net_config_fpath, "a+");
     if (net_config_file == NULL) {
 		goto error;
@@ -310,7 +311,7 @@ int get_server_addr(network_id_t* net_id, char server_addr[MAX_STORAGE]) {
     char conf_server_addr[MAX_STORAGE];
 
     while(fscanf(net_config_file, "%s %s", net_name, conf_server_addr) == 2) {
-		if (strlen(net_name) == strlen(net_id->name) && strncmp(net_name, net_id->name, strlen(net_name)) == 0) {
+		if (strncmp(net_name, net_id->name, strlen(net_name)) == 0) {
             strncpy(server_addr, conf_server_addr, strlen(conf_server_addr));
 
             fclose(net_config_file);
@@ -409,6 +410,7 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
     }
 
     if (connect_to_server(client->sock, server_addr) == FAILURE) {
+        puts("well");
         goto error;
     }
 
