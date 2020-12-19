@@ -416,7 +416,7 @@ int connect_process(network_id_t* network_id, int server_socket, int client_sock
 		available_client_in_nw[net_storage_id][client_storage_id] = 1;
 	}
 
-	strncpy(response, access_result, strlen(access_result));
+	strncpy(response, access_result, MAX_STORAGE);
 
 	return SUCCESS;
 
@@ -457,6 +457,7 @@ int process_cmd(int clt_sock, int server_sock, int* cmd_id, char* response, stor
 	if (recv(clt_sock, &net_pswd_len, sizeof(net_pswd_len), 0) == -1) {
 		goto error;
 	}
+
 
 	net_id.password = calloc(MAX_STORAGE, sizeof(char));
 	if (recv_all(clt_sock, net_pswd_len, net_id.password) == -1) {

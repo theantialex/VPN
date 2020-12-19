@@ -400,18 +400,7 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
         free(client);
         return FAILURE;
     }
-    if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0) {
-        if (client_save_data(net_id, param[0]) == FAILURE) {
-            goto error;
-        }
-        strncpy(server_addr, param[0], strlen(param[0]));
-    } else {
-        if (get_server_addr(&net_id, server_addr) == FAILURE) {
-            puts("Server address not found");
-            free(client);
-            return FAILURE;
-        }
-    }
+    strncpy(server_addr, param[0], strlen(param[0]));
 
     if (connect_to_server(client->sock, server_addr) == FAILURE) {
         puts("well");
