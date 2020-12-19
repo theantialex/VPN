@@ -337,9 +337,8 @@ int set_connection_process(char* get_addr, int socket) {
     int mask;
     char network_addr[255] = {};
     get_network_and_mask(get_addr, network_addr, &mask);
-
+    
     int tun_socket = create_client_tun(TUN_NAME, get_addr);
-
     if (event_anticipation(tun_socket, socket) == FAILURE) {
         return FAILURE;
     }
