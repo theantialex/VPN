@@ -466,8 +466,11 @@ int process_cmd(int clt_sock, int server_sock, int* cmd_id, char* response, stor
 			strncpy(response, CREATE_SUCCESS, 30);
 		}
 	} else if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0) {
+		puts("start connect");
 		*cmd_id = CONNECT_CMD_ID;
-		connect_process(&net_id, server_sock, clt_sock, clt_db_id, response);		
+		puts("special check");
+		connect_process(&net_id, server_sock, clt_sock, clt_db_id, response);	
+		puts("well?");	
 	}
 
 	// printf("Response for client: %s\n", response);

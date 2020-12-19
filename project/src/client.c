@@ -112,7 +112,7 @@ client_t* client_create(int socket, network_id_t net_id) {
 // 	return NULL;
 // }
 
-int connect_to_server(int sock, char server_addr[MAX_STORAGE]) {
+int connect_to_server(int sock, char* server_addr) {
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(SERVER_PORT);
@@ -249,7 +249,7 @@ error:
 	return FAILURE;
 }
 
-int client_save_data(network_id_t net_id, char server_addr[MAX_STORAGE]) {
+int client_save_data(network_id_t net_id, char* server_addr) {
     FILE* net_config_file = fopen(net_config_fpath, "a+");
     if (net_config_file == NULL) {
 		goto error;
@@ -305,7 +305,7 @@ error:
 	return FAILURE;
 }
 
-int get_server_addr(network_id_t* net_id, char server_addr[MAX_STORAGE]) {
+int get_server_addr(network_id_t* net_id, char* server_addr) {
     FILE* net_config_file = fopen(net_config_fpath, "r");
     char net_name[MAX_STORAGE];
     char conf_server_addr[MAX_STORAGE];
@@ -395,7 +395,12 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
         return FAILURE;
     }
 
-    char server_addr[MAX_STORAGE];
+    char* server_addr = (char*)calloc(MAX_STORAGE, sizeof(char));
+    if (server_addr == NULL) {
+        printf("Error occured while creating client in client_cmd_run: %s\n", strerror(errno));
+        free(client);
+        return FAILURE;
+    }
     if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0) {
         if (client_save_data(net_id, param[0]) == FAILURE) {
             goto error;
@@ -430,6 +435,7 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
 error:
     printf("Error occured while processing command: %s\n", strerror(errno));
     free(client);
+    free(server_addr);
 	return FAILURE;
 
 }
