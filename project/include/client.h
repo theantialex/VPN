@@ -20,6 +20,7 @@ struct recv_param_s {
     int socket;
 };
 
+
 client_t* client_create(int socket, network_id_t net_id);
 // int send_id(client_t* client);
 char* get_response(client_t* client);

@@ -9,6 +9,9 @@
 #define LEAVE_CMD "leave"
 #define DELETE_CMD "delete"
 
+#define CREATE_SUCCESS "Network succesfully allocated"
+#define CREATE_FAILURE "Can't allocate network"
+
 #include <stdint.h>
 #include <stdio.h>
 

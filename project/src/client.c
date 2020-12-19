@@ -294,6 +294,8 @@ int send_cmd_request(char* cmd, client_t* client) {
         goto error;
     }
 
+    puts("Sent cmd request");
+
     return SUCCESS;
 
 error:
@@ -319,7 +321,7 @@ int get_server_addr(network_id_t* net_id, char server_addr[MAX_STORAGE]) {
 }
 
 int network_creation_response(char* response) {
-    if (strncmp(response, "Network created", strlen(response)) != 0) {
+    if (strncmp(response, CREATE_SUCCESS, strlen(response)) != 0) {
             return FAILURE;
         }
     return SUCCESS;
@@ -421,12 +423,13 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
     if (response == NULL) {
         goto error;
     }
+    printf("Responce received: %s\n", response);
 
     if (cmd_choice(cmd, response, client->sock) == FAILURE) {
         goto error;
-    }   
+    }  
 
-
+    return SUCCESS;
 error:
     printf("Error occured while processing command: %s\n", strerror(errno));
     free(client);

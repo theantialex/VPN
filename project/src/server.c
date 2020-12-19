@@ -19,6 +19,14 @@
 #define MAX_STORAGE 250
 #define BUFSIZE 2000
 
+typedef enum {
+	WRONG_CMD_ID = -1,
+	CREATE_CMD_ID = 0,
+	CONNECT_CMD_ID = 1,
+	LEAVE_CMD_ID = 2,
+	DELETE_CMD_ID = 3,
+} CMD;
+
 // volatile int process_exited = 0;
 
 static client_in_t* client_db[MAX_STORAGE][MAX_STORAGE] = {};
@@ -232,7 +240,7 @@ int get_client_access(client_id* id, int network_storage_id, char* access_result
 		return -1;
 	}
 
-	int client_storage_id = get_first_availiable_client(network_storage_id);
+	int client_storage_id = get_first_available_client(network_storage_id);
 
 	if (client_storage_id == -1) {
 		strcpy(access_result, "Access denied");
@@ -267,7 +275,7 @@ error:
 	return FAILURE;
 }
 
-int get_first_availiable_client(int network_id) {
+int get_first_available_client(int network_id) {
 	for (int i = 0; i < MAX_STORAGE; i++) {
 		if (available_client_in_nw[network_id][i] == 0) {
 			return i;
@@ -276,9 +284,9 @@ int get_first_availiable_client(int network_id) {
 	return -1;
 }
 
-int get_first_availiable_network() {
+int get_first_available_network() {
 	for (int i = 0; i < MAX_STORAGE; i++) {
-		if (get_first_availiable_client(i) == -1) {
+		if (available_network[i] == 0) {
 			return i;
 		}
 	}
@@ -348,7 +356,7 @@ int add_network(network_id_t net_id) {
 		goto error;
 	}
 
-	int net_storage_id = get_first_availiable_network();
+	int net_storage_id = get_first_available_network();
 	if (net_storage_id == -1) {
 		puts("Server is full. Can't allocate network");
 		return FAILURE;
@@ -357,7 +365,7 @@ int add_network(network_id_t net_id) {
 	char net_sid_str[10];
 	sprintf(net_sid_str, "%d", net_storage_id);
 
-	char network_addr[MAX_STORAGE] = {};
+	char network_addr[MAX_STORAGE];
 	strcat(network_addr, "10.");
 	strcat(network_addr, net_sid_str);
 	strcat(network_addr, ".0.0.0/24");
@@ -377,8 +385,8 @@ error:
 	return FAILURE;
 }
 
-char* process_cmd(int sock) {
-	puts("Started processing cmd");
+int process_cmd(int sock, int* cmd_id, char* response) {
+	puts("Started processing cmd...");
 	int cmd_len;
 	if (recv(sock, &cmd_len, sizeof(cmd_len), 0) == -1) {
 		goto error;
@@ -391,7 +399,6 @@ char* process_cmd(int sock) {
 		free(cmd);
 		goto error;
 	}
-
 
 	network_id_t net_id;
 	int net_name_len;
@@ -413,37 +420,49 @@ char* process_cmd(int sock) {
 	if (recv_all(sock, net_pswd_len, net_id.password) == -1) {
 		goto error;
 	}
-	int id_len;
-	if (recv(sock, &id_len, sizeof(id_len), 0) == -1) {
-		goto error;
-	}
-
-	char* response = calloc(MAX_STORAGE, sizeof(char));
 
 	if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0) {
+		*cmd_id = CREATE_CMD_ID;
 		if (add_network(net_id) == FAILURE) {
-			strcpy(response, "Can't allocate network");
+			strncpy(response, CREATE_FAILURE, 30);
 		} else {
-			strcpy(response, "Network succesfully allocated");
+			strncpy(response, CREATE_SUCCESS, 30);
 		}
-		//TODO: bridge creation
 	}
 
-	return response;
+	printf("Response for client: %s\n", response);
+
+	return SUCCESS;
 
 error:
-	printf("Error occured while getting client id: %s\n", strerror(errno));
-	return NULL;
+	printf("Error occured while processing cmd: %s\n", strerror(errno));
+	return FAILURE;
 }
 
-int accept_event_handler(int server_sock) {
-	int client_server_socket;
+int send_cmd_response(int sock, char* response) {
+	int len = strlen(response);
+    if (send(sock, &len, sizeof(len), 0) == -1) {
+        goto error;
+    }
 
+    if (send_all(sock, response, len) == -1) {
+        goto error;
+    }
+
+	puts("Sent response");
+	return SUCCESS;
+
+error:
+	printf("Error occured while sending cmd response: %s\n", strerror(errno));
+	return FAILURE;
+}
+
+int accept_event_handler(int server_sock, int* client_server_socket, int* cmd_id, char* response) {
 	fcntl(server_sock, F_SETFL, O_NONBLOCK);
 
 	struct sockaddr_in client;
 	socklen_t len = sizeof(client);
-	if ((client_server_socket = accept(server_sock, (struct sockaddr *)&client, &len)) <= 0){
+	if ((*client_server_socket = accept(server_sock, (struct sockaddr *)&client, &len)) <= 0){
 		return FAILURE;
     }
 
@@ -451,13 +470,14 @@ int accept_event_handler(int server_sock) {
     inet_ntop(AF_INET, &(((struct sockaddr_in*) &client)->sin_addr), s, sizeof(s));
 	printf("Got a connection from %s\n", s);
 
-	if (client_server_socket == -1) {
+	if (*client_server_socket == -1) {
 		goto error;
 	}
 
-	if (process_cmd(client_server_socket) == NULL) {
+	if (process_cmd(*client_server_socket, cmd_id, response) == FAILURE) {
 		goto error;
 	}
+
 	return SUCCESS;
 
 error:
@@ -520,41 +540,51 @@ int event_anticipation(server_t* server, storage_id_t* clt_db_id) {
 	int i = 0;
 	int j = 0;
 
+	int cmd_id;
+	char* response = (char*) calloc(MAX_STORAGE, sizeof(char));
 	while(true) {
-		if (accept_event_handler(server->sock) == SUCCESS) {
+		int client_server_socket;
+		if (accept_event_handler(server->sock, &client_server_socket, &cmd_id, response) == SUCCESS) {
+			if (cmd_id == CREATE_CMD_ID) {
+				// TODO: bridge
+				if (send_cmd_response(client_server_socket, response) == FAILURE) {
+					goto error;
+				}
+			}
+			if (cmd_id == CONNECT_CMD_ID) {
+				int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
+				int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
 
-			int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
-			int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
+				struct event_base* base = event_base_new();
+				if (!base) {
+					perror("base");
+					exit(1);
+				}
 
-			struct event_base* base = event_base_new();
-			if (!base) {
-                perror("base");
-                exit(1);
-            }
+				struct clt_recv_param_s clt_param = { tunnel_sock };
 
-			struct clt_recv_param_s clt_param = { tunnel_sock };
+				struct event* clt_recv_event = event_new(base, client_server_sock,  EV_READ | EV_PERSIST, 
+				(event_callback_fn)client_recv_event_handler, (void*)&clt_param);
+				if (!clt_recv_event) {
+					goto error;
+				}
+				if (event_add(clt_recv_event, NULL) < 0) {
+					goto error;
+				}
 
-			struct event* clt_recv_event = event_new(base, client_server_sock,  EV_READ | EV_PERSIST, 
-			(event_callback_fn)client_recv_event_handler, (void*)&clt_param);
-			if (!clt_recv_event) {
-                goto error;
-            }
-			if (event_add(clt_recv_event, NULL) < 0) {
-                goto error;
-            }
+				struct tun_recv_param_s tun_param = { client_server_sock };
+				struct event* tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST, 
+				(event_callback_fn)tun_recv_event_handler, (void*)&tun_param);
+				if (!tun_recv_event) {
+					goto error;
+				}
+				if (event_add(tun_recv_event, NULL) < 0) {
+					goto error;
+				}
 
-			struct tun_recv_param_s tun_param = { client_server_sock };
-			struct event* tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST, 
-			(event_callback_fn)tun_recv_event_handler, (void*)&tun_param);
-			if (!tun_recv_event) {
-                goto error;
-            }
-			if (event_add(tun_recv_event, NULL) < 0) {
-                goto error;
-            }
-
-			ev_base_arr[i] = base;
-			i++;
+				ev_base_arr[i] = base;
+				i++;
+			}
 		}
 		j = 0;
 		while(j < i) {
