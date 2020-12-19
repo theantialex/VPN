@@ -311,7 +311,7 @@ int add_network(network_id_t net_id) {
 		return FAILURE;
 	}
 
-	char net_sid_str[10];
+	char net_sid_str[10] = {};
 	sprintf(net_sid_str, "%d", net_storage_id);
 
 	char network_addr[MAX_STORAGE];
@@ -386,7 +386,7 @@ int connect_process(network_id_t* network_id, int server_socket, int client_sock
 	}
 
 	octs[3] = client_storage_id+1;
-	sprintf(access_result, "%d.%d.%d.%d", octs[0], octs[1], octs[2], octs[3]);
+	sprintf(access_result, "%d.%d.%d.%d/%d", octs[0], octs[1], octs[2], octs[3], mask);
 
 	if (client_storage_id != -1) {
 		char* tun_name = "server_tun";
