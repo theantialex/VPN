@@ -378,6 +378,7 @@ error:
 }
 
 char* process_cmd(int sock) {
+	puts("Started processing cmd");
 	int cmd_len;
 	if (recv(sock, &cmd_len, sizeof(cmd_len), 0) == -1) {
 		goto error;
