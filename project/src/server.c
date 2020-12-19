@@ -77,12 +77,14 @@ server_t* server_create(hserver_config_t *config) {
 
 	server->sock = sock;
 
-	FILE* config_file = fopen(config_fpath, "w");
-	if (config_file == NULL) {
-		free(server);
-		goto error;
-	}
-	fclose(config_file);
+	FILE* config_file = fopen(config_fpath, "rb");
+    if (getc(config_file) == EOF) {
+        FILE* config_file = fopen(config_fpath, "w");
+        if (config_file == NULL) {
+            return NULL;
+        }
+        fclose(config_file);
+    }
 
 	FILE* active_clients_file = fopen(active_clients_fpath, "w");
 	if (active_clients_file == NULL) {
@@ -355,7 +357,6 @@ int client_identify(network_id_t* id, char* network_addr) {
 			}
 		}
 	}
-
 	fclose(config_file);
 	return FAILURE;
 }
@@ -363,9 +364,10 @@ int client_identify(network_id_t* id, char* network_addr) {
 int connect_process(network_id_t* network_id, int server_socket, int client_socket, storage_id_t* client_db_id, char* response) {
 	char access_result[MAX_STORAGE];
 
-	if (client_identify(network_id, access_result) == -1) {
+	if (client_identify(network_id, access_result) == FAILURE) {
 		strcpy(access_result, "Access denied");
-
+		client_db_id->network_id = -1;
+		client_db_id->client_id = -1;
 		return FAILURE;
 	}
 
@@ -375,14 +377,15 @@ int connect_process(network_id_t* network_id, int server_socket, int client_sock
 	int net_storage_id = octs[1];
 
 	int client_storage_id = get_first_available_client(net_storage_id);
-
 	if (client_storage_id == -1) {
 		strcpy(access_result, "Access denied");
 		puts("The network is full. No access given");
-		return -1;
+		client_db_id->network_id = -1;
+		client_db_id->client_id = -1;
+		return FAILURE;
 	}
 
-	octs[3] = client_storage_id;
+	octs[3] = client_storage_id+1;
 	sprintf(access_result, "%d.%d.%d.%d", octs[0], octs[1], octs[2], octs[3]);
 
 	if (client_storage_id != -1) {
@@ -418,6 +421,8 @@ int connect_process(network_id_t* network_id, int server_socket, int client_sock
 	return SUCCESS;
 
 error:
+	client_db_id->network_id = -1;
+	client_db_id->client_id = -1;
 	printf("Error occured while running client connection process: %s\n", strerror(errno));
 	return FAILURE;
 }
@@ -466,11 +471,10 @@ int process_cmd(int clt_sock, int server_sock, int* cmd_id, char* response, stor
 			strncpy(response, CREATE_SUCCESS, 30);
 		}
 	} else if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0) {
-		puts("start connect");
 		*cmd_id = CONNECT_CMD_ID;
-		puts("special check");
-		connect_process(&net_id, server_sock, clt_sock, clt_db_id, response);	
-		puts("well?");	
+		if (connect_process(&net_id, server_sock, clt_sock, clt_db_id, response) == FAILURE) {
+			puts("Can't process connect cmd. Something went wrong");
+		}
 	}
 
 	// printf("Response for client: %s\n", response);
@@ -492,7 +496,7 @@ int send_cmd_response(int sock, char* response) {
         goto error;
     }
 
-	puts("Sent response");
+	printf("Sent response: %s\n", response);
 	return SUCCESS;
 
 error:
@@ -596,6 +600,9 @@ int event_anticipation(server_t* server, storage_id_t* clt_db_id) {
 			}
 			if (cmd_id == CONNECT_CMD_ID) {
 				//TODO: add to bridge
+				if (clt_db_id->network_id == -1 || clt_db_id->client_id == -1) {
+					exit(1);
+				}
 				int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
 				int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
 
