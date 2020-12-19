@@ -50,12 +50,13 @@ client_t* client_create(int socket, network_id_t net_id) {
             return NULL;
         }
     }
-
-    FILE* net_config_file = fopen(net_config_fpath, "w");
-	if (net_config_file == NULL) {
-        return NULL;
-	}
-	fclose(net_config_file);
+    if (fopen(net_config_fpath, "r") == NULL) {
+        FILE* net_config_file = fopen(net_config_fpath, "w");
+        if (net_config_file == NULL) {
+            return NULL;
+        }
+        fclose(net_config_file);
+    }
     
     return client;
 }
