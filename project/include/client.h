@@ -38,7 +38,7 @@ int send_cmd_request(char* cmd, client_t* client);
 int get_server_addr(network_id_t* net_id, char server_addr[MAX_STORAGE]);
 int network_creation_response(char* response);
 int set_connection_process(char* get_addr, int socket);
-char* get_cmd_response(int socket);
+int get_cmd_response(int socket, char* response);
 int cmd_choice(char* cmd, char* response, int socket);
 int client_run_cmd(char* cmd, network_id_t net_id, char* param[]);
 

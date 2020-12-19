@@ -344,14 +344,9 @@ int set_connection_process(char* get_addr, int socket) {
     return SUCCESS;
 }
 
-char* get_cmd_response(int socket) {
+int get_cmd_response(int socket, char* response) {
     size_t response_len;
     if (recv(socket, &response_len, sizeof(response_len), 0) == -1) {
-        goto error;
-    }
-
-    char* response = (char*) calloc(response_len, sizeof(char));
-    if (response == NULL) {
         goto error;
     }
 
@@ -361,10 +356,11 @@ char* get_cmd_response(int socket) {
     }
 
     printf("Responce received: %s\n", response);
-    return response;
+    return SUCCESS;
 
 error:
-	return NULL;
+    printf("Error occured while getting cmd response: %s\n", strerror(errno));
+	return FAILURE;
 }
 
 int cmd_choice(char* cmd, char* response, int socket) {
@@ -418,9 +414,8 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
     if (send_cmd_request(cmd, client) == FAILURE) {
         goto error;
     }
-
-    char* response = get_cmd_response(client->sock);
-    if (response == NULL) {
+    char* response = (char*) calloc(MAX_STORAGE, sizeof(char));
+    if (get_cmd_response(client->sock, response) == FAILURE) {
         goto error;
     }
     printf("Responce received: %s\n", response);
