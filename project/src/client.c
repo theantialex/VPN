@@ -1,11 +1,11 @@
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
-#include <ifaddrs.h>
-
 #include <event2/event.h>
 #include <event2/event-config.h>
 
 #include <fcntl.h>
+#include <ifaddrs.h>
 
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -13,7 +13,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/select.h>
@@ -27,8 +29,9 @@
 
 #define SERVER_PORT 6666
 // #define SERVER_ADDRESS "192.168.1.103"
+#define client_data_dir "./project/client_data"
+#define net_config_fpath "./project/client_data/net_config.txt"
 
-#define net_config_fpath "/project/client_data/net_config.txt"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tun0"
 #define BUFSIZE 2000
@@ -36,10 +39,17 @@
 client_t* client_create(int socket, network_id_t net_id) {
     client_t* client = calloc(1, sizeof(*client));
     if (client == NULL) {
+
         return NULL;
     }
     client->net_id = net_id;
     client->sock = socket;
+
+    if (opendir(client_data_dir) == NULL) {
+        if (mkdir(client_data_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
+            return NULL;
+        }
+    }
 
     FILE* net_config_file = fopen(net_config_fpath, "w");
 	if (net_config_file == NULL) {
@@ -374,14 +384,14 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
     int clt_socket;
     clt_socket  = socket(AF_INET, SOCK_STREAM, 0);
     if (clt_socket == -1) {
-        printf("Error occured while running client: %s\n", strerror(errno));
+        printf("Error occured while creating socket in client_cmd_run: %s\n", strerror(errno));
         return FAILURE;
     }
 
     client_t* client = client_create(clt_socket, net_id);
 
     if (client == NULL) {
-        printf("Error occured while running client: %s\n", strerror(errno));
+        printf("Error occured while creating client in client_cmd_run: %s\n", strerror(errno));
         return FAILURE;
     }
 
