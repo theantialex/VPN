@@ -196,7 +196,7 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
 
     char buffer[BUFSIZE];
 
-    if (read(client_server_socket, BUFSIZE, buffer) == -1) {
+    if (read(client_server_socket, buffer, BUFSIZE) == -1) {
         perror("recv_all()");
         exit(1);
     }
