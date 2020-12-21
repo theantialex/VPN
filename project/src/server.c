@@ -718,10 +718,10 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 		{
 			if (cmd_id == CREATE_CMD_ID)
 			{
-				if (create_bridge(clt_db_id) == FAILURE)
-				{
-					goto error;
-				}
+				// if (create_bridge(clt_db_id) == FAILURE)
+				// {
+				// 	goto error;
+				// }
 				if (send_cmd_response(client_server_socket, response) == FAILURE)
 				{
 					goto error;
@@ -729,10 +729,10 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 			}
 			if (cmd_id == CONNECT_CMD_ID)
 			{
-				if (add_tun_to_bridge(clt_db_id) == FAILURE)
-				{
-					goto error;
-				}
+				// if (add_tun_to_bridge(clt_db_id) == FAILURE)
+				// {
+				// 	goto error;
+				// }
 				if (clt_db_id->network_id == -1 || clt_db_id->client_id == -1)
 				{
 					exit(1);
