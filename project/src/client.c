@@ -195,11 +195,19 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
     }
 
     char buffer[BUFSIZE];
-
-    if (read(client_server_socket, buffer, BUFSIZE) == -1) {
+    int n = read(client_server_socket, buffer, BUFSIZE);
+    if (n == -1) {
         perror("recv_all()");
         exit(1);
     }
+    printf("Received %d of data\n", n);
+	int i = 0;
+	puts("Packet:");
+	while(i < n) {
+		printf("%02x", buffer[i]);
+	    i++;
+	}
+	puts("");
     if (write(recv_clt_param->socket, buffer, strlen(buffer)) == -1) {
         perror("write()");
         exit(1);
