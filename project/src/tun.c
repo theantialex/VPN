@@ -125,27 +125,27 @@ int create_client_tun(char* if_name, char* addr) {
 
 int create_server_tun(char* if_name, char* addr) {
   int tun_fd;
-  int sock_fd;
-  struct sockaddr_in address;
-  int optval = 1;
+ // int sock_fd;
+//  struct sockaddr_in address;
+ // int optval = 1;
   debug = 1;
 
-  if ( (tun_fd = tun_alloc(if_name, IFF_TUN)) < 0 ) {
+  if ( (tun_fd = tun_alloc(if_name, IFF_TAP)) < 0 ) {
     my_err("Error connecting to tun/tap interface %s!\n", if_name);
     exit(1);
   }
 
   do_debug("Successfully connected to interface %s\n", if_name);
 
-  if ( (sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror("socket()");
-    exit(1);
-  }
+  // if ( (sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+  //   perror("socket()");
+  //   exit(1);
+  // }
 
-  if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
-      perror("setsockopt()");
-      exit(1);
-  }
+  // if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
+  //     perror("setsockopt()");
+  //     exit(1);
+  // }
 
   char command[255];
   strcpy(command, "ip a add ");
@@ -163,16 +163,16 @@ int create_server_tun(char* if_name, char* addr) {
     my_err("Error setting tun/tap interface %s up!\n", if_name);
   }
 
-  memset(&address, 0, sizeof(address));
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = inet_addr("127.0.0.1");
-  address.sin_port = htons(6666);
+  // memset(&address, 0, sizeof(address));
+  // address.sin_family = AF_INET;
+  // address.sin_addr.s_addr = inet_addr("127.0.0.1");
+  // address.sin_port = htons(6666);
   
-  if (connect(sock_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
-      perror("connect()");
-      exit(1);
-  }
+  // if (connect(sock_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
+  //     perror("connect()");
+  //     exit(1);
+  // }
 
-  return sock_fd;
+  return tun_fd;
 }
 
