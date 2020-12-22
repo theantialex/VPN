@@ -111,130 +111,6 @@ error:
 	return NULL;
 }
 
-// int process_setup_signals() {
-// 	struct sigaction action = {0};
-// 	action.sa_handler = sigterm_handler;
-// 	if (sigaction(SIGTERM, &action, NULL) == -1) {
-// 		goto error;
-// 	}
-
-// 	return SUCCESS;
-
-// error:
-// 	printf("Error occured while setting up signals: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
-
-// int add_active_client(char* client_name, char* client_network) {
-// 	FILE* aclient_file = fopen(active_clients_fpath, "a+");
-// 	if (aclient_file == NULL) {
-// 		goto error;
-// 	}
-
-// 	if (fprintf(aclient_file, "%s %s\n", client_name, client_network) < 0) {
-// 		fclose(aclient_file);
-// 		goto error;
-// 	}
-
-// 	fclose(aclient_file);
-// 	return SUCCESS;
-
-// error:
-// 	printf("Error occured while adding active client: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
-
-// client_id* get_client_id(int socket) {
-// 	int id_len;
-// 	if (recv(socket, &id_len, sizeof(id_len), 0) == -1) {
-// 		goto error;
-// 	}
-
-// 	client_id* id = calloc(1, sizeof(client_id));
-// 	if (id == NULL) {
-// 		goto error;
-// 	}
-
-// 	id->name = (char*) calloc(id_len, sizeof(char));
-// 	if (id->name == NULL) {
-// 		free(id);
-// 		goto error;
-// 	}
-
-// 	if (recv_all(socket, id_len, id->name) == -1) {
-// 		free(id->name);
-// 		free(id);
-// 		goto error;
-// 	}
-
-// 	if (recv(socket, &id_len, sizeof(id_len), 0) == -1) {
-// 		free(id->name);
-// 		free(id);
-// 		goto error;
-// 	}
-
-// 	id->password = (char*) calloc(id_len,sizeof(char));
-// 	if (id->password == NULL) {
-// 		free(id->name);
-// 		free(id);
-// 		goto error;
-// 	}
-
-// 	if (recv_all(socket, id_len, id->password) == -1) {
-// 		free_client_id(id);
-// 		free(id);
-// 		goto error;
-// 	}
-
-// 	return id;
-
-// error:
-// 	printf("Error occured while getting client id: %s\n", strerror(errno));
-// 	return NULL;
-// }
-
-// int get_client_access(client_id* id, int network_storage_id, char* access_result) {
-// 	if (client_identify(id, access_result) == -1) {
-// 		strcpy(access_result, "Access denied");
-
-// 		return -1;
-// 	}
-
-// 	int client_storage_id = get_first_available_client(network_storage_id);
-
-// 	if (client_storage_id == -1) {
-// 		strcpy(access_result, "Access denied");
-// 		puts("The network is full. No access given");
-// 		return -1;
-// 	}
-
-// 	add_active_client(id->name, access_result);
-
-// 	return client_storage_id;
-// }
-
-// int send_access_to_client(client_id* id, int socket, int network_storage_id, int* client_storage_id) {
-// 	char access_result[MAX_STORAGE];
-
-// 	*client_storage_id = get_client_access(id, network_storage_id, access_result);
-
-// 	size_t access_res_len = strlen(access_result);
-
-// 	if (send(socket, &access_res_len, sizeof(access_res_len), 0) == -1) {
-// 		goto error;
-// 	}
-
-// 	if (send_all(socket, access_result, access_res_len) == -1) {
-// 		goto error;
-// 	}
-
-// 	return SUCCESS;
-
-// error:
-// 	printf("Error occured while sending access to client: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
-
 int get_first_available_client(int network_id)
 {
 	for (int i = 0; i < MAX_STORAGE; i++)
@@ -258,63 +134,6 @@ int get_first_available_network()
 	}
 	return -1;
 }
-
-// int client_identification_process(int client_sock, int server_sock, hserver_config_t* server_param, storage_id_t* clt_db_id) {
-// 	client_id* id = get_client_id(client_sock);
-// 	if (id == NULL) {
-// 		goto error;
-// 	}
-
-// 	printf("Got client id: %s %s\n", id->name, id->password);
-
-// 	int client_storage_id;
-// 	if (send_access_to_client(id, client_sock, clt_db_id->network_id, &client_storage_id) == -1) {
-// 		free_client_id(id);
-// 		free(id);
-
-// 		goto error;
-// 	};
-
-// 	if (client_storage_id != -1) {
-// 		char* tun_name = "server_tun";
-// 		char tun_id_str[10] = {};
-// 		int post_sock;
-// 		sprintf(tun_id_str, "%d", client_storage_id);
-
-// 		char res_name[20];
-// 		snprintf(res_name, 20, "%s%s", tun_name, tun_id_str);
-
-// 		char access_res[MAX_STORAGE];
-// 		get_client_access(id, clt_db_id->network_id, access_res);
-
-// 		int tun_origin_sock = create_server_tun(res_name, server_param, access_res);
-// 		if (tun_origin_sock == -1) {
-// 			goto error;
-// 		}
-
-// 		post_sock = accept(server_sock, NULL, NULL);
-
-// 		client_in_t* client_in = calloc(1, sizeof(client_in_t));
-// 		client_in->client_socket = client_sock;
-
-// 		client_in->tun_socket = post_sock;
-
-// 		clt_db_id->client_id = client_storage_id;
-
-// 		client_db[clt_db_id->network_id][clt_db_id->client_id] = client_in;
-// 		available_client_in_nw[clt_db_id->network_id][client_storage_id] = 1;
-
-// 	}
-
-// 	free_client_id(id);
-// 	free(id);
-
-// 	return SUCCESS;
-
-// error:
-// 	printf("Error occured while running client identification process: %s\n", strerror(errno));
-// 	return FAILURE;
-// }
 
 int add_network(network_id_t net_id, int *network_db_id)
 {
@@ -444,12 +263,9 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 			goto error;
 		}
 
-		// post_sock = accept(server_socket, NULL, NULL);
-
 		client_in_t *client_in = calloc(1, sizeof(client_in_t));
 		client_in->client_socket = client_socket;
 
-		//client_in->tun_socket = post_sock;
 		client_in->tun_socket = tun_origin_sock;
 
 		client_db_id->network_id = net_storage_id;
@@ -533,8 +349,6 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 			puts("Can't process connect cmd. Something went wrong");
 		}
 	}
-
-	// printf("Response for client: %s\n", response);
 
 	return SUCCESS;
 
