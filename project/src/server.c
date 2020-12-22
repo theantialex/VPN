@@ -398,6 +398,8 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 		return FAILURE;
 	}
 
+	puts("here");
+
 	if (server_socket == -1)
 	{
 		return FAILURE;
@@ -407,6 +409,8 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 	int mask;
 	get_octs_and_mask_from_ip(access_result, octs, &mask);
 	int net_storage_id = octs[1];
+
+	puts("here");
 
 	int client_storage_id = get_first_available_client(net_storage_id);
 	if (client_storage_id == -1)
@@ -642,13 +646,13 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 		exit(1);
 	}
 	printf("Received %d of data\n", n);
-	int i = 0;
-	puts("Packet:");
-	while(i < n) {
-		printf("%02x", buffer[i]);
-		i++;
-	}
-	puts("");
+	// int i = 0;
+	// puts("Packet:");
+	// while(i < n) {
+	// 	printf("%02x", buffer[i]);
+	// 	i++;
+	// }
+	// puts("");
 
 	int m = send(params->client_socket, buffer, n, 0);
 	if (m == -1)

@@ -200,14 +200,15 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
         perror("recv_all()");
         exit(1);
     }
-    printf("Received %d of data\n", n);
-	int i = 0;
-	puts("Packet:");
-	while(i < n) {
-		printf("%02x", buffer[i]);
-	    i++;
-	}
-	puts("");
+
+    // printf("Received %d of data\n", n);
+	// int i = 0;
+	// puts("Packet:");
+	// while(i < n) {
+	// 	printf("%02x", buffer[i]);
+	//     i++;
+	// }
+	// puts("");
 
     if (write(recv_clt_param->socket, buffer, n) == -1) {
         perror("write()");
