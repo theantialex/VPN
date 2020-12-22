@@ -200,6 +200,7 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
         perror("recv_all()");
         exit(1);
     }
+    printf("ip p = %d\n", n);
 
     // printf("Received %d of data\n", n);
 	// int i = 0;
