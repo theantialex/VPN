@@ -170,14 +170,14 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
         exit(1);
     }
     puts("Got something in tunnel recv event handler!");
-    strncpy(ip_packet, buffer, n);
-    packet_len += n;
+  //  strncpy(ip_packet, buffer, n);
+    packet_len = n;
 
-    while (n != -1) {
-        n = read(tun_socket, buffer, BUFSIZE);
-        strncat(ip_packet, buffer, n);
-        packet_len += n;
-    }
+    // while (n != -1) {
+    //     n = read(tun_socket, buffer, BUFSIZE);
+    //     strncat(ip_packet, buffer, n);
+    //     packet_len += n;
+    // }
 
     printf("ip p = %d\n", packet_len);
     if (send(recv_tun_param->socket, ip_packet, packet_len, 0) == -1) {
@@ -195,7 +195,7 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
     }
 
     char buffer[BUFSIZE];
-    int n = read(client_server_socket, buffer, BUFSIZE);
+    int n = recv(client_server_socket, buffer, BUFSIZE, 0);
     if (n == -1) {
         perror("recv_all()");
         exit(1);

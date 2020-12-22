@@ -606,7 +606,7 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
 
 	char buffer[BUFSIZE];
 
-	int n = read(client_server_socket, buffer, BUFSIZE);
+	int n = recv(client_server_socket, buffer, BUFSIZE, 0);
 	if (n == -1)
 	{
 		perror("read()");
@@ -650,7 +650,7 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 	}
 	puts("");
 
-	int m = write(params->client_socket, buffer, n);
+	int m = send(params->client_socket, buffer, n, 0);
 	if (m == -1)
 	{
 		perror("write()");
