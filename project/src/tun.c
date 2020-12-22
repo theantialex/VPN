@@ -98,7 +98,7 @@ int create_client_tun(char* if_name, char* addr) {
   debug = 1;
   char command[255];
 
-  if ( (tun_fd = tun_alloc(if_name, IFF_TUN)) < 0 ) {
+  if ( (tun_fd = tun_alloc(if_name, IFF_TAP)) < 0 ) {
     my_err("Error connecting to tun/tap interface %s!\n", if_name);
     exit(1);
   }
@@ -130,7 +130,7 @@ int create_server_tun(char* if_name, char* addr) {
  // int optval = 1;
   debug = 1;
 
-  if ( (tun_fd = tun_alloc(if_name, IFF_TUN)) < 0 ) {
+  if ( (tun_fd = tun_alloc(if_name, IFF_TAP)) < 0 ) {
     my_err("Error connecting to tun/tap interface %s!\n", if_name);
     exit(1);
   }

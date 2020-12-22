@@ -18,7 +18,7 @@
 #define active_clients_fpath "./project/data/active_clients.txt"
 #define config_fpath "./project/data/config.txt"
 #define MAX_STORAGE 250
-#define BUFSIZE 2000
+#define BUFSIZE 16536
 
 typedef enum
 {
@@ -101,6 +101,8 @@ server_t *server_create(hserver_config_t *config)
 		goto error;
 	}
 	fclose(active_clients_file);
+
+	server->base = event_base_new();
 	return server;
 
 error:
@@ -707,15 +709,17 @@ int add_tun_to_bridge(storage_id_t *db_id)
 	return SUCCESS;
 }
 
+static int n_clients = 0;
+
 int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 {
-	struct event_base *ev_base_arr[250];
+//	struct event_base *ev_base_arr[250];
 	int i = 0;
-	int j = 0;
+//	int j = 0;
 
 	int cmd_id;
 	char *response = (char *)calloc(MAX_STORAGE, sizeof(char));
-	while (true)
+	while (n_clients < 2)
 	{
 		int client_server_socket;
 		if (accept_event_handler(server->sock, &client_server_socket, &cmd_id, response, clt_db_id) == SUCCESS)
@@ -743,18 +747,20 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 				}
 				int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
 				int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
+				printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
 
-				struct event_base *base = event_base_new();
+				struct event_base *base = server->base; 
 				if (!base)
 				{
 					perror("base");
 					exit(1);
 				}
 
-				struct clt_recv_param_s clt_param = {tunnel_sock};
+				struct clt_recv_param_s *clt_param = malloc(sizeof(struct clt_recv_param_s));
+				clt_param->server_tun_socket = tunnel_sock;
 
 				struct event *clt_recv_event = event_new(base, client_server_sock, EV_READ | EV_PERSIST,
-														 (event_callback_fn)client_recv_event_handler, (void *)&clt_param);
+														 (event_callback_fn)client_recv_event_handler, (void *)clt_param);
 				if (!clt_recv_event)
 				{
 					goto error;
@@ -764,9 +770,10 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 					goto error;
 				}
 
-				struct tun_recv_param_s tun_param = {client_server_sock};
+				struct tun_recv_param_s *tun_param = malloc(sizeof(struct tun_recv_param_s));
+				tun_param->client_socket = client_server_sock;
 				struct event *tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST,
-														 (event_callback_fn)tun_recv_event_handler, (void *)&tun_param);
+														 (event_callback_fn)tun_recv_event_handler, (void *)tun_param);
 				if (!tun_recv_event)
 				{
 					goto error;
@@ -776,16 +783,22 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 					goto error;
 				}
 
-				ev_base_arr[i] = base;
+//				ev_base_arr[i] = base;
 				i++;
 
 				if (send_cmd_response(client_server_socket, response) == FAILURE)
 				{
 					goto error;
 				}
+				n_clients++;
 			}
 		}
-		j = 0;
+    }
+
+		printf("dispatch\n");
+    if (event_base_dispatch(server->base) < 0) {
+        goto error;
+/*		j = 0;
 		while (j < i)
 		{
 			if (ev_base_arr[j] != NULL)
@@ -795,6 +808,7 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 			}
 			j++;
 		}
+		*/
 	}
 
 	return SUCCESS;

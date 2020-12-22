@@ -1,10 +1,14 @@
 #ifndef PROJECT_INCLUDE_SERVER_H_
 #define PROJECT_INCLUDE_SERVER_H_
 
+#include <event2/event.h>
+#include <event2/event-config.h>
+
 #include "utils.h"
 
 typedef struct {
 	int sock;
+	struct event_base *base;
 } server_t;
 
 typedef struct {
