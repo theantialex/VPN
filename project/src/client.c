@@ -170,7 +170,7 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
         exit(1);
     }
     puts("Got something in tunnel recv event handler!");
-  //  strncpy(ip_packet, buffer, n);
+    strncpy(ip_packet, buffer, n);
     packet_len = n;
 
     // while (n != -1) {
@@ -208,7 +208,8 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
 	    i++;
 	}
 	puts("");
-    if (write(recv_clt_param->socket, buffer, strlen(buffer)) == -1) {
+
+    if (write(recv_clt_param->socket, buffer, n) == -1) {
         perror("write()");
         exit(1);
     }
