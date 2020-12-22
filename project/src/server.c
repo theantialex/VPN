@@ -481,15 +481,28 @@ int create_bridge(storage_id_t *db_id)
 	char bridge_id_str[10] = {};
 	sprintf(bridge_id_str, "%d", db_id->network_id);
 
-	strcpy(command, "brctl addbr bridge");
+	strcpy(command, "ip link add name bridge");
 	strcat(command, bridge_id_str);
+	strcat(command, " type bridge");
+
+
+	if (system(command) != 0)
+	{
+		return FAILURE;
+	}
+	printf("Bridge%s created\n", bridge_id_str);
+
+	strcpy(command, "ip link set bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " up");
 
 	if (system(command) != 0)
 	{
 		return FAILURE;
 	}
 
-	printf("Bridge %s created\n", bridge_id_str);
+	printf("Bridge%s is up\n", bridge_id_str);
+
 	return SUCCESS;
 }
 
@@ -503,12 +516,13 @@ int add_tun_to_bridge(storage_id_t *db_id)
 	char tap_id_str[10] = {};
 	sprintf(tap_id_str, "%d", db_id->client_id);
 
-	strcpy(command, "brctl addif bridge");
-	strcat(command, bridge_id_str);
-	strcat(command, " server_tap");
+	strcpy(command, "ip link set server_tap");
 	strcat(command, bridge_id_str);
 	strcat(command, "_");
 	strcat(command, tap_id_str);
+	strcat(command, " master bridge");
+	strcat(command, bridge_id_str);
+
 
 	if (system(command) != 0)
 	{
@@ -549,10 +563,11 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 
 	if (params->cmd_id == CREATE_CMD_ID)
 	{
-		// if (create_bridge(clt_db_id) == FAILURE)
-		// {
-		// 	goto error;
-		// }
+		if (create_bridge(params->clt_db_id) == FAILURE)
+		{
+			perror("bridge creation");
+			return;
+		}
 		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
 		{
 			return;
@@ -560,17 +575,19 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 	}
 	if (params->cmd_id == CONNECT_CMD_ID)
 	{
-		// if (add_tun_to_bridge(clt_db_id) == FAILURE)
-		// {
-		// 	goto error;
-		// }
+		if (add_tun_to_bridge(params->clt_db_id) == FAILURE)
+		{
+			perror("adding tun to bridge");
+			return;
+		}
 		if (params->clt_db_id->network_id == -1 || params->clt_db_id->client_id == -1)
 		{
+			puts("Invalid storage id");
 			return;
 		}
 		int client_server_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->client_socket;
 		int tunnel_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->tun_socket;
-		printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
+		// printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
 
 		struct event_base *base = params->base; 
 		if (!base)
@@ -586,10 +603,12 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 													(event_callback_fn)client_recv_event_handler, (void *)clt_param);
 		if (!clt_recv_event)
 		{
+			perror("clt_recv_event");
 			return;
 		}
 		if (event_add(clt_recv_event, NULL) < 0)
 		{
+			perror("event_add");
 			return;
 		}
 
@@ -599,15 +618,18 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 													(event_callback_fn)tun_recv_event_handler, (void *)tun_param);
 		if (!tun_recv_event)
 		{
+			perror("tun_recv_event");
 			return;
 		}
 		if (event_add(tun_recv_event, NULL) < 0)
 		{
+			perror("event_add");
 			return;
 		}
 
 		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
 		{
+			perror("send");
 			return;
 		}
 	}
