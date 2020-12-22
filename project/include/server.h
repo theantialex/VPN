@@ -29,6 +29,14 @@ struct tun_recv_param_s {
 	int client_socket;
 };
 
+struct server_accept_param_s {
+	int client_server_socket;
+	int cmd_id;
+	char *response;
+	storage_id_t *clt_db_id;
+	struct event_base *base;
+};
+
 
 server_t* server_create(hserver_config_t *config);
 void server_close(server_t *server);

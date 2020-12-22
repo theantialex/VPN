@@ -400,8 +400,6 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 		return FAILURE;
 	}
 
-	puts("here");
-
 	if (server_socket == -1)
 	{
 		return FAILURE;
@@ -411,8 +409,6 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 	int mask;
 	get_octs_and_mask_from_ip(access_result, octs, &mask);
 	int net_storage_id = octs[1];
-
-	puts("here");
 
 	int client_storage_id = get_first_available_client(net_storage_id);
 	if (client_storage_id == -1)
@@ -709,106 +705,124 @@ int add_tun_to_bridge(storage_id_t *db_id)
 	return SUCCESS;
 }
 
-static int n_clients = 0;
+void server_accept_event_handler(int server_sock, short flags, struct server_accept_param_s* params) {
+	if (flags == 0)
+	{
+		perror("flags");
+		exit(1);
+	}
+
+	fcntl(server_sock, F_SETFL, O_NONBLOCK);
+
+	struct sockaddr_in client;
+	socklen_t len = sizeof(client);
+
+	params->client_server_socket = accept(server_sock, (struct sockaddr *)&client, &len);
+	if (params->client_server_socket <= 0) {
+		return;
+	}
+
+	char s[INET6_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(((struct sockaddr_in *)&client)->sin_addr), s, sizeof(s));
+	printf("Got a connection from %s\n", s);
+
+
+	if (process_cmd(params->client_server_socket, server_sock, &params->cmd_id, params->response, params->clt_db_id) == FAILURE)
+	{
+		puts("Error in processing_cmd while running server_read_event_handler");
+		return;
+	}
+
+	if (params->cmd_id == CREATE_CMD_ID)
+	{
+		// if (create_bridge(clt_db_id) == FAILURE)
+		// {
+		// 	goto error;
+		// }
+		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
+		{
+			return;
+		}
+	}
+	if (params->cmd_id == CONNECT_CMD_ID)
+	{
+		// if (add_tun_to_bridge(clt_db_id) == FAILURE)
+		// {
+		// 	goto error;
+		// }
+		if (params->clt_db_id->network_id == -1 || params->clt_db_id->client_id == -1)
+		{
+			return;
+		}
+		int client_server_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->client_socket;
+		int tunnel_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->tun_socket;
+		printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
+
+		struct event_base *base = params->base; 
+		if (!base)
+		{
+			perror("base");
+			return;
+		}
+
+		struct clt_recv_param_s *clt_param = malloc(sizeof(struct clt_recv_param_s));
+		clt_param->server_tun_socket = tunnel_sock;
+
+		struct event *clt_recv_event = event_new(base, client_server_sock, EV_READ | EV_PERSIST,
+													(event_callback_fn)client_recv_event_handler, (void *)clt_param);
+		if (!clt_recv_event)
+		{
+			return;
+		}
+		if (event_add(clt_recv_event, NULL) < 0)
+		{
+			return;
+		}
+
+		struct tun_recv_param_s *tun_param = malloc(sizeof(struct tun_recv_param_s));
+		tun_param->client_socket = client_server_sock;
+		struct event *tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST,
+													(event_callback_fn)tun_recv_event_handler, (void *)tun_param);
+		if (!tun_recv_event)
+		{
+			return;
+		}
+		if (event_add(tun_recv_event, NULL) < 0)
+		{
+			return;
+		}
+
+		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
+		{
+			return;
+		}
+	}
+}
 
 int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 {
-//	struct event_base *ev_base_arr[250];
-	int i = 0;
-//	int j = 0;
-
-	int cmd_id;
 	char *response = (char *)calloc(MAX_STORAGE, sizeof(char));
-	while (n_clients < 2)
+
+	struct server_accept_param_s *srv_param = malloc(sizeof(struct server_accept_param_s));
+	srv_param->clt_db_id = clt_db_id;
+	srv_param->response = response;
+	srv_param->base = server->base;
+
+	struct event *server_accept_event = event_new(server->base, server->sock, EV_READ | EV_PERSIST,
+														 (event_callback_fn)server_accept_event_handler, (void *)srv_param);
+	if (!server_accept_event)
 	{
-		int client_server_socket;
-		if (accept_event_handler(server->sock, &client_server_socket, &cmd_id, response, clt_db_id) == SUCCESS)
-		{
-			if (cmd_id == CREATE_CMD_ID)
-			{
-				// if (create_bridge(clt_db_id) == FAILURE)
-				// {
-				// 	goto error;
-				// }
-				if (send_cmd_response(client_server_socket, response) == FAILURE)
-				{
-					goto error;
-				}
-			}
-			if (cmd_id == CONNECT_CMD_ID)
-			{
-				// if (add_tun_to_bridge(clt_db_id) == FAILURE)
-				// {
-				// 	goto error;
-				// }
-				if (clt_db_id->network_id == -1 || clt_db_id->client_id == -1)
-				{
-					exit(1);
-				}
-				int client_server_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->client_socket;
-				int tunnel_sock = client_db[clt_db_id->network_id][clt_db_id->client_id]->tun_socket;
-				printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
+		goto error;
+	}
 
-				struct event_base *base = server->base; 
-				if (!base)
-				{
-					perror("base");
-					exit(1);
-				}
+	if (event_add(server_accept_event, NULL) < 0)
+	{
+		goto error;
+	}
 
-				struct clt_recv_param_s *clt_param = malloc(sizeof(struct clt_recv_param_s));
-				clt_param->server_tun_socket = tunnel_sock;
-
-				struct event *clt_recv_event = event_new(base, client_server_sock, EV_READ | EV_PERSIST,
-														 (event_callback_fn)client_recv_event_handler, (void *)clt_param);
-				if (!clt_recv_event)
-				{
-					goto error;
-				}
-				if (event_add(clt_recv_event, NULL) < 0)
-				{
-					goto error;
-				}
-
-				struct tun_recv_param_s *tun_param = malloc(sizeof(struct tun_recv_param_s));
-				tun_param->client_socket = client_server_sock;
-				struct event *tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST,
-														 (event_callback_fn)tun_recv_event_handler, (void *)tun_param);
-				if (!tun_recv_event)
-				{
-					goto error;
-				}
-				if (event_add(tun_recv_event, NULL) < 0)
-				{
-					goto error;
-				}
-
-//				ev_base_arr[i] = base;
-				i++;
-
-				if (send_cmd_response(client_server_socket, response) == FAILURE)
-				{
-					goto error;
-				}
-				n_clients++;
-			}
-		}
-    }
-
-		printf("dispatch\n");
+	printf("dispatch\n");
     if (event_base_dispatch(server->base) < 0) {
         goto error;
-/*		j = 0;
-		while (j < i)
-		{
-			if (ev_base_arr[j] != NULL)
-			{
-				event_base_loop(ev_base_arr[j], EVLOOP_NONBLOCK | EVLOOP_ONCE);
-				// printf("loop %d\n", j);
-			}
-			j++;
-		}
-		*/
 	}
 
 	return SUCCESS;
