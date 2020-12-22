@@ -180,7 +180,7 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
     // }
 
     printf("ip p = %d\n", packet_len);
-    if (send(recv_tun_param->socket, ip_packet, packet_len, 0) == -1) {
+    if (write(recv_tun_param->socket, ip_packet, packet_len) == -1) {
         perror("send()");
         exit(1);
     }
@@ -195,9 +195,9 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
     }
 
     char buffer[BUFSIZE];
-    int n = recv(client_server_socket, buffer, BUFSIZE, 0);
+    int n = read(client_server_socket, buffer, BUFSIZE);
     if (n == -1) {
-        perror("recv()");
+        perror("recv_all()");
         exit(1);
     }
     printf("ip p = %d\n", n);
