@@ -263,9 +263,6 @@ int get_server_addr(network_id_t* net_id, char* server_addr) {
 }
 
 int network_creation_response(char* response) {
-    if (strncmp(response, CREATE_SAME_ERROR, strlen(response)) != 0) {
-            return SUCCESS;
-    }
     if (strncmp(response, CREATE_SUCCESS, strlen(response)) != 0) {
             return FAILURE;
     }
@@ -357,7 +354,7 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
         goto error;
     }
 
-    if (cmd_choice(cmd, response, client->sock) == FAILURE) {
+    if (cmd_choice(cmd, response, client->sock) == FAILURE && !strncpy(strerror(errno), "Success", 8)) {
         goto error;
     }  
 
