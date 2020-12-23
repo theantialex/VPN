@@ -27,6 +27,7 @@ typedef enum
 	CONNECT_CMD_ID = 1,
 	LEAVE_CMD_ID = 2,
 	DELETE_CMD_ID = 3,
+	SAME_CMD_ID = 4
 } CMD;
 
 // volatile int process_exited = 0;
@@ -83,16 +84,11 @@ server_t *server_create(hserver_config_t *config)
 
 	server->sock = sock;
 
-	FILE *config_file = fopen(config_fpath, "rb");
-	if (getc(config_file) == EOF)
-	{
-		FILE *config_file = fopen(config_fpath, "w");
-		if (config_file == NULL)
-		{
+	FILE *config_file = fopen(config_fpath, "w");
+	if (config_file == NULL) {
 			return NULL;
-		}
-		fclose(config_file);
 	}
+	fclose(config_file);
 
 	FILE *active_clients_file = fopen(active_clients_fpath, "w");
 	if (active_clients_file == NULL)
@@ -285,6 +281,30 @@ error:
 	return FAILURE;
 }
 
+int check_network(network_id_t net_id) {
+	FILE *config_file = fopen(config_fpath, "r");
+	if (config_file == NULL)
+	{
+		goto error;
+	}
+
+	char net_name[MAX_STORAGE];
+	char net_password[MAX_STORAGE];
+	char net_addr[MAX_STORAGE];
+
+	while (fscanf(config_file, "%s %s %s", net_name, net_password, net_addr) == 3) {
+		if (strlen(net_name) == strlen(net_id.name) && strncmp(net_name, net_id.name, strlen(net_name)) == 0) {
+			return FAILURE;
+		}
+	}
+
+	fclose(config_file);
+	return SUCCESS;
+error:
+	printf("Error occured while checking network: %s\n", strerror(errno));
+	return FAILURE;
+}
+
 int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, storage_id_t *clt_db_id)
 {
 	puts("Started processing cmd...");
@@ -331,14 +351,22 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 
 	if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0)
 	{
-		*cmd_id = CREATE_CMD_ID;
-		if (add_network(net_id, &clt_db_id->network_id) == FAILURE)
-		{
-			strncpy(response, CREATE_FAILURE, 30);
-		}
-		else
-		{
-			strncpy(response, CREATE_SUCCESS, 30);
+
+		if (check_network(net_id) == FAILURE) {
+
+			strncpy(response, CREATE_SAME_ERROR, 40);
+			*cmd_id = SAME_CMD_ID;
+
+		} else {
+			  *cmd_id = CREATE_CMD_ID;
+
+			  if (add_network(net_id, &clt_db_id->network_id) == FAILURE) {
+
+				  strncpy(response, CREATE_FAILURE, 40);
+			  }
+			  else {
+				  strncpy(response, CREATE_SUCCESS, 40);
+			  }
 		}
 	}
 	else if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0)
@@ -573,6 +601,15 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 			return;
 		}
 	}
+
+	if (params->cmd_id == SAME_CMD_ID)
+	{
+		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
+		{
+			return;
+		}
+	}
+
 	if (params->cmd_id == CONNECT_CMD_ID)
 	{
 		if (add_tun_to_bridge(params->clt_db_id) == FAILURE)
@@ -656,7 +693,6 @@ int event_anticipation(server_t *server, storage_id_t *clt_db_id)
 		goto error;
 	}
 
-	printf("dispatch\n");
     if (event_base_dispatch(server->base) < 0) {
         goto error;
 	}

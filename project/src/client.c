@@ -263,6 +263,9 @@ int get_server_addr(network_id_t* net_id, char* server_addr) {
 }
 
 int network_creation_response(char* response) {
+    if (strncmp(response, CREATE_SAME_ERROR, strlen(response)) != 0) {
+            return SUCCESS;
+    }
     if (strncmp(response, CREATE_SUCCESS, strlen(response)) != 0) {
             return FAILURE;
     }
@@ -343,7 +346,6 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
     strncpy(server_addr, param[0], strlen(param[0]));
 
     if (connect_to_server(client->sock, server_addr) == FAILURE) {
-        puts("well");
         goto error;
     }
 

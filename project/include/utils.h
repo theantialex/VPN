@@ -11,6 +11,7 @@
 
 #define CREATE_SUCCESS "Network succesfully allocated"
 #define CREATE_FAILURE "Can't allocate network"
+#define CREATE_SAME_ERROR "Network with this name already exists"
 
 #include <stdint.h>
 #include <stdio.h>
