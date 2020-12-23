@@ -6,10 +6,12 @@
 #define MAX_STORAGE 250
 #define CREATE_CMD "create"
 #define CONNECT_CMD "connect"
-#define LEAVE_CMD "leave"
+#define DISCONNECT_CMD "leave"
 #define DELETE_CMD "delete"
 
 #define CREATE_SUCCESS "Network succesfully allocated"
+#define DELETE_SUCCESS "Network succesfully deleted"
+#define DISCONNECT_SUCCESS "Client succesfully disconnected"
 #define CREATE_FAILURE "Can't allocate network"
 #define CREATE_SAME_ERROR "Network with this name already exists"
 

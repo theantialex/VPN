@@ -269,6 +269,20 @@ int network_creation_response(char* response) {
     return SUCCESS;
 }
 
+int network_delete_response(char* response) {
+    if (strncmp(response, DELETE_SUCCESS, strlen(response)) != 0) {
+            return FAILURE;
+    }
+    return SUCCESS;
+}
+
+int network_disconnect_response(char* response) {
+    if (strncmp(response, DISCONNECT_SUCCESS, strlen(response)) != 0) {
+            return FAILURE;
+    }
+    return SUCCESS;
+}
+
 int set_connection_process(char* get_addr, int socket) {
     if (strncmp(get_addr, ACCESS_DENIED, strlen(get_addr)) == 0) {
         return FAILURE;
@@ -307,6 +321,12 @@ error:
 int cmd_choice(char* cmd, char* response, int socket) {
     if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0) {
         return network_creation_response(response);
+    }
+    if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
+        return network_delete_response(response);
+    }
+    if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
+        return network_disconnect_response(response);
     }
 
     if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0) {

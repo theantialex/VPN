@@ -17,6 +17,7 @@
 
 #define active_clients_fpath "./project/data/active_clients.txt"
 #define config_fpath "./project/data/config.txt"
+#define config_temp_fpath "./project/data/config1.txt"
 #define MAX_STORAGE 250
 #define BUFSIZE 16536
 
@@ -25,7 +26,7 @@ typedef enum
 	WRONG_CMD_ID = -1,
 	CREATE_CMD_ID = 0,
 	CONNECT_CMD_ID = 1,
-	LEAVE_CMD_ID = 2,
+	DISCONNECT_CMD_ID = 2,
 	DELETE_CMD_ID = 3,
 	SAME_CMD_ID = 4
 } CMD;
@@ -281,6 +282,70 @@ error:
 	return FAILURE;
 }
 
+int delete_process(int network_id) {
+	// TODO: Write this proccess
+	if (network_id < 0) {
+		return FAILURE;
+	}
+	// 	FILE *config_file = fopen(config_fpath, "r");
+	// FILE *new_file = fopen(config_temp_fpath, "w");
+	// if (config_file == NULL)
+	// {
+	// 	return FAILURE;
+	// }
+
+	// char net_name[MAX_STORAGE];
+	// char net_password[MAX_STORAGE];
+	// char net_addr[MAX_STORAGE];
+
+	// while (fscanf(config_file, "%s %s %s", net_name, net_password, net_addr) == 3) {
+	// 	if (strlen(net_name) == strlen(net_id.name) && strncmp(net_name, net_id.name, strlen(net_name)) == 0) {
+	// 		return FAILURE;
+	// 	}
+	// }
+	return SUCCESS;
+}
+
+int disconnect_process( storage_id_t * db_id) {
+	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
+	//int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
+	client_db[db_id->network_id][db_id->client_id] = NULL;
+
+	char command[255];
+	char bridge_id_str[10] = {};
+	char tap_id_str[10] = {};
+	sprintf(bridge_id_str, "%d", db_id->network_id);
+	sprintf(tap_id_str, "%d", db_id->client_id);
+
+	strcpy(command, "brctl delif bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " server_tap");
+	strcat(command, bridge_id_str);
+	strcat(command, "_");
+	strcat(command, tap_id_str);
+
+	if (system(command) != 0) {
+		return FAILURE;
+	}
+
+	// close(tunnel_sock);
+	// unlink client_server_sock
+
+	// strcpy(command, "ip tuntap del server_tap");
+	// strcat(command, bridge_id_str);
+	// strcat(command, "_");
+	// strcat(command, tap_id_str);
+	// strcat(command, " mod tap");
+
+	// if (system(command) != 0) {
+	// 	return FAILURE;
+	// }
+	// remove from config 
+
+
+	return SUCCESS;
+}
+
 int check_network(network_id_t net_id) {
 	FILE *config_file = fopen(config_fpath, "r");
 	if (config_file == NULL)
@@ -349,6 +414,14 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 		goto error;
 	}
 
+	if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
+		*cmd_id = DELETE_CMD_ID;
+		if (delete_process(clt_db_id->network_id) == FAILURE)
+		{
+			puts("Can't process delete cmd. Something went wrong");
+		}
+	}
+
 	if (strncmp(cmd, CREATE_CMD, strlen(cmd)) == 0)
 	{
 
@@ -369,12 +442,20 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 			  }
 		}
 	}
-	else if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0)
+	if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0)
 	{
 		*cmd_id = CONNECT_CMD_ID;
 		if (connect_process(&net_id, server_sock, clt_sock, clt_db_id, response) == FAILURE)
 		{
 			puts("Can't process connect cmd. Something went wrong");
+		}
+	}
+	if (strncmp(cmd, DISCONNECT_CMD, strlen(cmd)) == 0)
+	{
+		*cmd_id = DISCONNECT_CMD_ID;
+		if (disconnect_process(clt_db_id) == FAILURE)
+		{
+			puts("Can't process disconnect cmd. Something went wrong");
 		}
 	}
 
