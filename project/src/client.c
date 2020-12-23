@@ -354,7 +354,7 @@ int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
         goto error;
     }
 
-    if (cmd_choice(cmd, response, client->sock) == FAILURE && !strncmp(strerror(errno), "Success", 8)) {
+    if ((cmd_choice(cmd, response, client->sock) == FAILURE) && !strncmp(strerror(errno), "Success", 8)) {
         goto error;
     }  
 
