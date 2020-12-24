@@ -10,10 +10,14 @@
 #define DELETE_CMD "delete"
 
 #define CREATE_SUCCESS "Network succesfully allocated"
-#define DELETE_SUCCESS "Network succesfully deleted"
-#define DISCONNECT_SUCCESS "Client succesfully disconnected"
 #define CREATE_FAILURE "Can't allocate network"
 #define CREATE_SAME_ERROR "Network with this name already exists"
+
+#define DELETE_SUCCESS "Network succesfully deleted"
+#define DELETE_FAILURE "Can't delete network"
+
+#define DISCONNECT_SUCCESS "Client succesfully disconnected"
+
 #define EMPTY_RESPONSE "Can't process cmd"
 #define NOT_EXIST_RESPONSE "Can't process cmd. Network or client doesn't exist"
 

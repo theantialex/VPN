@@ -282,39 +282,81 @@ error:
 	return FAILURE;
 }
 
-int delete_process(int network_id) {
-	// TODO: Write this proccess
+int delete_process(int network_id, char* del_net_name) {
 	if (network_id < 0) {
 		return FAILURE;
 	}
-	// 	FILE *config_file = fopen(config_fpath, "r");
-	// FILE *new_file = fopen(config_temp_fpath, "w");
-	// if (config_file == NULL)
-	// {
-	// 	return FAILURE;
-	// }
 
-	// char net_name[MAX_STORAGE];
-	// char net_password[MAX_STORAGE];
-	// char net_addr[MAX_STORAGE];
+	//TODO: disconnect all
 
-	// while (fscanf(config_file, "%s %s %s", net_name, net_password, net_addr) == 3) {
-	// 	if (strlen(net_name) == strlen(net_id.name) && strncmp(net_name, net_id.name, strlen(net_name)) == 0) {
-	// 		return FAILURE;
-	// 	}
-	// }
+	FILE *config_file = fopen(config_fpath, "r");
+	if (config_file == NULL)
+	{
+		return FAILURE;
+	}
+	FILE *new_file = fopen(config_temp_fpath, "w");
+
+
+	char net_name[MAX_STORAGE];
+	char net_password[MAX_STORAGE];
+	char net_addr[MAX_STORAGE];
+
+	while (fscanf(config_file, "%s %s %s", net_name, net_password, net_addr) == 3) {
+		if (strlen(net_name) == strlen(del_net_name) && strncmp(net_name, del_net_name, strlen(net_name)) == 0) {
+			continue;
+		}
+		fprintf(new_file, "%s %s %s", net_name, net_password, net_addr);
+	}
+	fclose(config_file);
+	fclose(new_file);
+
+	if (remove(config_fpath) != 0) {
+		perror("remove");
+		return FAILURE;
+	}
+	if (rename(config_temp_fpath, config_fpath) != 0) {
+		perror("rename");
+		return FAILURE;
+	}
+
+	char command[MAX_STORAGE];
+	char bridge_id_str[10] = {};
+	sprintf(bridge_id_str, "%d", network_id);
+
+	strcpy(command, "ip link set bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " down");
+
+	if (system(command) != 0) {
+		return FAILURE;
+	}
+
+	printf("Bridge%s is down\n", bridge_id_str);
+
+	strncpy(command, "brctl delbr bridge", MAX_STORAGE);
+	strcat(command, bridge_id_str);
+
+	if (system(command) != 0) {
+		return FAILURE;
+	}
+
+	//TODO: clean available
+
+	printf("Deleted bridge%s\n", bridge_id_str);
+
+
 	return SUCCESS;
 }
 
 int disconnect_process(storage_id_t* db_id, char* response) {
 	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
 	//int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
-	
+
 	if (db_id->network_id == -1 || db_id->client_id == -1) {
 		strncpy(response, NOT_EXIST_RESPONSE, MAX_STORAGE);
-		return SUCCESS;
+		return FAILURE;
 	}
-
+	//TODO: clean available
 	client_db[db_id->network_id][db_id->client_id] = NULL;
 
 	char command[255];
@@ -329,11 +371,11 @@ int disconnect_process(storage_id_t* db_id, char* response) {
 	strcat(command, bridge_id_str);
 	strcat(command, "_");
 	strcat(command, tap_id_str);
-	printf("Deleted server_tap%s_%s from bridge%s\n", bridge_id_str, tap_id_str, bridge_id_str);
 
 	if (system(command) != 0) {
 		return FAILURE;
 	}
+	printf("Deleted server_tap%s_%s from bridge%s\n", bridge_id_str, tap_id_str, bridge_id_str);
 
 	// close(tunnel_sock);
 	// unlink client_server_sock
@@ -423,9 +465,12 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 
 	if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
 		*cmd_id = DELETE_CMD_ID;
-		if (delete_process(clt_db_id->network_id) == FAILURE)
+		if (delete_process(clt_db_id->network_id, net_id.name) == FAILURE)
 		{
 			puts("Can't process delete cmd. Something went wrong");
+			strncpy(response, DELETE_FAILURE, MAX_STORAGE);
+		} else {
+			strncpy(response, DELETE_SUCCESS, MAX_STORAGE);
 		}
 	}
 
@@ -761,6 +806,12 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 		}
 	}
 	if (params->cmd_id == DISCONNECT_CMD_ID)	{
+		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
+		{
+			return;
+		}
+	}
+	if (params->cmd_id == DELETE_CMD_ID)	{
 		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
 		{
 			return;
