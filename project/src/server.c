@@ -309,6 +309,12 @@ int delete_process(int network_id) {
 int disconnect_process(storage_id_t* db_id, char* response) {
 	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
 	//int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
+	
+	if (db_id->network_id == -1 || db_id->client_id == -1) {
+		strncpy(response, NOT_EXIST_RESPONSE, MAX_STORAGE);
+		return SUCCESS;
+	}
+
 	client_db[db_id->network_id][db_id->client_id] = NULL;
 
 	char command[255];
@@ -343,7 +349,7 @@ int disconnect_process(storage_id_t* db_id, char* response) {
 	// }
 	// remove from config 
 
-	strncpy(response, DISCONNECT_SUCCESS, strlen(response));
+	strncpy(response, DISCONNECT_SUCCESS, MAX_STORAGE);
 	return SUCCESS;
 }
 
@@ -664,6 +670,8 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 	inet_ntop(AF_INET, &(((struct sockaddr_in *)&client)->sin_addr), s, sizeof(s));
 	printf("Got a connection from %s\n", s);
 
+	strncpy(params->response, EMPTY_RESPONSE, MAX_STORAGE);
+
 
 	if (process_cmd(params->client_server_socket, server_sock, &params->cmd_id, params->response, params->clt_db_id) == FAILURE)
 	{
@@ -800,7 +808,7 @@ int server_run(hserver_config_t *config)
 		goto error;
 	}
 
-	storage_id_t client_db_id;
+	storage_id_t client_db_id = {-1, -1};
 
 	if (event_anticipation(server, &client_db_id) == FAILURE)
 	{

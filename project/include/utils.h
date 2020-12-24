@@ -14,6 +14,8 @@
 #define DISCONNECT_SUCCESS "Client succesfully disconnected"
 #define CREATE_FAILURE "Can't allocate network"
 #define CREATE_SAME_ERROR "Network with this name already exists"
+#define EMPTY_RESPONSE "Can't process cmd"
+#define NOT_EXIST_RESPONSE "Can't process cmd. Network or client doesn't exist"
 
 #include <stdint.h>
 #include <stdio.h>
