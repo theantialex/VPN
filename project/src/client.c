@@ -284,7 +284,7 @@ int network_disconnect_response(char* response) {
 }
 
 int set_connection_process(char* get_addr, int socket) {
-    if (strncmp(get_addr, ACCESS_DENIED, strlen(get_addr)) == 0) {
+    if (strncmp(get_addr, ACCESS_DENIED, strlen(get_addr)) == 0 || strncmp(get_addr, EMPTY_RESPONSE, strlen(get_addr)) == 0) {
         return FAILURE;
     }
 

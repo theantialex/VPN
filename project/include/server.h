@@ -21,6 +21,11 @@ typedef struct {
 	int tun_socket;
 } client_in_t;
 
+typedef struct {
+	struct event* clt_recv_event;
+	struct event* tun_recv_event;
+} client_event_t;
+
 struct clt_recv_param_s {
 	int server_tun_socket;
 };

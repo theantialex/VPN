@@ -34,6 +34,7 @@ typedef enum
 // volatile int process_exited = 0;
 
 static client_in_t *client_db[MAX_STORAGE][MAX_STORAGE] = {};
+static client_event_t *client_event_db[MAX_STORAGE][MAX_STORAGE] = {};
 
 int available_client_in_nw[MAX_STORAGE][MAX_STORAGE] = {};
 int available_network[MAX_STORAGE] = {};
@@ -350,12 +351,23 @@ int delete_process(int network_id, char* del_net_name) {
 
 int disconnect_process(storage_id_t* db_id, char* response) {
 	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
-	//int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
-
+	// close(client_server_sock);
+	// int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
+	// close(tunnel_sock);
+	
 	if (db_id->network_id == -1 || db_id->client_id == -1) {
 		strncpy(response, NOT_EXIST_RESPONSE, MAX_STORAGE);
 		return FAILURE;
 	}
+
+	event_del(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
+    free(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
+
+	event_del(client_event_db[db_id->network_id][db_id->client_id]->tun_recv_event);
+    free(client_event_db[db_id->network_id][db_id->client_id]->tun_recv_event);
+
+	free(client_event_db[db_id->network_id][db_id->client_id]);
+	client_event_db[db_id->network_id][db_id->client_id] = NULL;
 	//TODO: clean available
 	client_db[db_id->network_id][db_id->client_id] = NULL;
 
@@ -391,7 +403,6 @@ int disconnect_process(storage_id_t* db_id, char* response) {
 	// }
 	// remove from config 
 
-	strncpy(response, DISCONNECT_SUCCESS, MAX_STORAGE);
 	return SUCCESS;
 }
 
@@ -508,6 +519,8 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 		if (disconnect_process(clt_db_id, response) == FAILURE)
 		{
 			puts("Can't process disconnect cmd. Something went wrong");
+		} else {
+			strncpy(response, DISCONNECT_SUCCESS, MAX_STORAGE);
 		}
 	}
 
@@ -747,16 +760,22 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 
 	if (params->cmd_id == CONNECT_CMD_ID)
 	{
+		if (params->clt_db_id->network_id == -1 || params->clt_db_id->client_id == -1)
+		{
+			puts("Invalid storage id");
+			if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
+			{
+				return;
+			}	
+			return;		
+		}
+
 		if (add_tun_to_bridge(params->clt_db_id) == FAILURE)
 		{
 			perror("adding tun to bridge");
 			return;
 		}
-		if (params->clt_db_id->network_id == -1 || params->clt_db_id->client_id == -1)
-		{
-			puts("Invalid storage id");
-			return;
-		}
+
 		int client_server_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->client_socket;
 		int tunnel_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->tun_socket;
 		// printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
@@ -798,6 +817,11 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 			perror("event_add");
 			return;
 		}
+
+		client_event_t* client_event_in = malloc(sizeof(client_event_t));
+		client_event_in->clt_recv_event = clt_recv_event;
+		client_event_in->tun_recv_event = tun_recv_event;
+		client_event_db[params->clt_db_id->network_id][params->clt_db_id->client_id] = client_event_in;
 
 		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
 		{
