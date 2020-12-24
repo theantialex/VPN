@@ -967,7 +967,7 @@ static void sig_handler(int signum) {
 	if (signum) {
 		process_exited = 1;
 	}
-
+	puts("");
 	for (int i = 0; i < MAX_STORAGE; i++) {
 		if (available_network[i] == 1) {
 			for (int j = 0; j < MAX_STORAGE; j++) {

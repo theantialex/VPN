@@ -51,6 +51,7 @@ static void sigterm_handler(int signum) {
     if (signum) {
 		process_clt_exited = 1;
 	}
+    puts("");
     destroy();
     exit(0);
 }
