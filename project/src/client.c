@@ -64,7 +64,6 @@ int connect_to_server(int sock, char* server_addr) {
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(SERVER_PORT);
-    printf("%s %ld %d\n", server_addr, strlen(server_addr), server_addr[strlen(server_addr)-1]);
     if (inet_aton(server_addr, &dest_addr.sin_addr) == 0) {
         goto error;
     }
@@ -72,7 +71,7 @@ int connect_to_server(int sock, char* server_addr) {
     if (connect(sock, (struct sockaddr *) &dest_addr, sizeof(dest_addr)) == -1) {
         goto error;
     }
-    puts("Client connected");
+    puts("Client connected to server");
 
     return SUCCESS;
 
