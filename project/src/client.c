@@ -28,12 +28,12 @@
 #include "utils.h"
 
 #define SERVER_PORT 6666
-#define client_data_dir "./project/client_data"
-#define net_config_fpath "./project/client_data/net_config.txt"
-
+#define pid_file_fpath "./project/data/pid.txt"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tap0"
 #define BUFSIZE 16536
+
+// static client_event_t* client_event;
 
 client_t* client_create(int socket, network_id_t net_id) {
     client_t* client = calloc(1, sizeof(*client));
@@ -43,21 +43,25 @@ client_t* client_create(int socket, network_id_t net_id) {
     }
     client->net_id = net_id;
     client->sock = socket;
-
-    if (opendir(client_data_dir) == NULL) {
-        if (mkdir(client_data_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
-            return NULL;
-        }
-    }
-    if (fopen(net_config_fpath, "r") == NULL) {
-        FILE* net_config_file = fopen(net_config_fpath, "w");
-        if (net_config_file == NULL) {
-            return NULL;
-        }
-        fclose(net_config_file);
-    }
     
     return client;
+}
+
+int connect_kill() {
+    char command[255];
+	char pid_str[10] = {};
+
+    FILE* pid_file = fopen(pid_file_fpath, "r");
+	fscanf(pid_file, "%s", pid_str);
+    fclose(pid_file);
+
+	strcpy(command, "kill ");
+	strcat(command, pid_str);
+    if (system(command) != 0) {
+		return FAILURE;
+	}
+
+    return SUCCESS;
 }
 
 int connect_to_server(int sock, char* server_addr) {
@@ -190,25 +194,6 @@ error:
 	return FAILURE;
 }
 
-int client_save_data(network_id_t net_id, char* server_addr) {
-    FILE* net_config_file = fopen(net_config_fpath, "a+");
-    if (net_config_file == NULL) {
-		goto error;
-	}
-
-	if (fprintf(net_config_file, "%s %s\n",net_id.name, server_addr) < 0) {
-		fclose(net_config_file);
-		goto error;
-	}
-
-	fclose(net_config_file);
-
-    return SUCCESS;
-error:
-	printf("Error occured while saving client data: %s\n", strerror(errno));
-	return FAILURE;
-}
-
 int send_cmd_request(char* cmd, client_t* client) {
     int len = strlen(cmd);
     if (send(client->sock, &len, sizeof(len), 0) == -1) {
@@ -246,23 +231,6 @@ error:
 	return FAILURE;
 }
 
-int get_server_addr(network_id_t* net_id, char* server_addr) {
-    FILE* net_config_file = fopen(net_config_fpath, "r");
-    char net_name[MAX_STORAGE];
-    char conf_server_addr[MAX_STORAGE];
-
-    while(fscanf(net_config_file, "%s %s", net_name, conf_server_addr) == 2) {
-		if (strncmp(net_name, net_id->name, strlen(net_name)) == 0) {
-            strncpy(server_addr, conf_server_addr, strlen(conf_server_addr));
-
-            fclose(net_config_file);
-            return SUCCESS;
-		}
-	}
-    fclose(net_config_file);
-    return FAILURE;
-}
-
 int network_creation_response(char* response) {
     if (strncmp(response, CREATE_SUCCESS, strlen(response)) != 0) {
             return FAILURE;
@@ -281,7 +249,7 @@ int network_disconnect_response(char* response) {
     if (strncmp(response, DISCONNECT_SUCCESS, strlen(response)) != 0) {
             return FAILURE;
     }
-    return SUCCESS;
+    return connect_kill();
 }
 
 int set_connection_process(char* get_addr, int socket) {
@@ -289,9 +257,14 @@ int set_connection_process(char* get_addr, int socket) {
         return FAILURE;
     }
 
-    int mask;
-    char network_addr[255] = {};
-    get_network_and_mask(get_addr, network_addr, &mask);
+    FILE* pid_file = fopen(pid_file_fpath, "r");
+    if (fprintf(pid_file, "%d", getpid()) < 0) {
+        perror("write to pid.txt");
+        return FAILURE;
+    }
+    fclose(pid_file);
+
+
     
     int tun_socket = create_client_tun(TUN_NAME, get_addr);
     if (event_anticipation(tun_socket, socket) == FAILURE) {
