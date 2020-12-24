@@ -616,7 +616,7 @@ void client_recv_event_handler(int client_server_socket, short flags, int *param
 	}
 	printf("Read %d of data\n", n);
 
-	int m = write(params, buffer, n);
+	int m = write(*params, buffer, n);
 	if (m == -1)
 	{
 		perror("write()");
