@@ -596,7 +596,7 @@ error:
 	return FAILURE;
 }
 
-void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s *params)
+void client_recv_event_handler(int client_server_socket, short flags, int *params)
 {
 	puts("Received ip packet on socket");
 
@@ -616,7 +616,7 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
 	}
 	printf("Read %d of data\n", n);
 
-	int m = write(params->server_tun_socket, buffer, n);
+	int m = write(*params, buffer, n);
 	if (m == -1)
 	{
 		perror("write()");
@@ -625,7 +625,7 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
 	printf("Sent %d of data\n", m);
 }
 
-void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s *params)
+void tun_recv_event_handler(int tun_socket, short flags, int *params)
 {
 	puts("Received ip packet on tap interface");
 
@@ -652,7 +652,7 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 	// }
 	// puts("");
 
-	int m = send(params->client_socket, buffer, n, 0);
+	int m = send(*params, buffer, n, 0);
 	if (m == -1)
 	{
 		perror("write()");
@@ -799,11 +799,11 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 			return;
 		}
 
-		struct clt_recv_param_s *clt_param = malloc(sizeof(struct clt_recv_param_s));
-		clt_param->server_tun_socket = tunnel_sock;
+		// struct clt_recv_param_s *clt_param = malloc(sizeof(struct clt_recv_param_s));
+		// clt_param->server_tun_socket = tunnel_sock;
 
 		struct event *clt_recv_event = event_new(base, client_server_sock, EV_READ | EV_PERSIST,
-													(event_callback_fn)client_recv_event_handler, (void *)clt_param);
+													(event_callback_fn)client_recv_event_handler, (void *)&tunnel_sock);
 		if (!clt_recv_event)
 		{
 			perror("clt_recv_event");
@@ -815,10 +815,10 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 			return;
 		}
 
-		struct tun_recv_param_s *tun_param = malloc(sizeof(struct tun_recv_param_s));
-		tun_param->client_socket = client_server_sock;
+		// struct tun_recv_param_s *tun_param = malloc(sizeof(struct tun_recv_param_s));
+		// tun_param->client_socket = client_server_sock;
 		struct event *tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST,
-													(event_callback_fn)tun_recv_event_handler, (void *)tun_param);
+													(event_callback_fn)tun_recv_event_handler, (void *)&client_server_sock);
 		if (!tun_recv_event)
 		{
 			perror("tun_recv_event");
