@@ -274,7 +274,7 @@ int set_connection_process(char* get_addr, int socket) {
 }
 
 int get_cmd_response(int socket, char* response) {
-    size_t response_len;
+    int response_len;
     if (recv(socket, &response_len, sizeof(response_len), 0) == -1) {
         goto error;
     }

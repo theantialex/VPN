@@ -803,7 +803,8 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 		// clt_param->server_tun_socket = tunnel_sock;
 
 		struct event *clt_recv_event = event_new(base, client_server_sock, EV_READ | EV_PERSIST,
-													(event_callback_fn)client_recv_event_handler, (void *)&tunnel_sock);
+													(event_callback_fn)client_recv_event_handler, (void *)
+													&client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->tun_socket);
 		if (!clt_recv_event)
 		{
 			perror("clt_recv_event");
@@ -818,7 +819,8 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 		struct tun_recv_param_s *tun_param = malloc(sizeof(struct tun_recv_param_s));
 		tun_param->client_socket = client_server_sock;
 		struct event *tun_recv_event = event_new(base, tunnel_sock, EV_READ | EV_PERSIST,
-													(event_callback_fn)tun_recv_event_handler, (void *)tun_param);
+													(event_callback_fn)tun_recv_event_handler, (void *)
+													&client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->client_socket);
 		if (!tun_recv_event)
 		{
 			perror("tun_recv_event");
