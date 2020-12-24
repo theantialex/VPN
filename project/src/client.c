@@ -257,7 +257,7 @@ int set_connection_process(char* get_addr, int socket) {
         return FAILURE;
     }
 
-    FILE* pid_file = fopen(pid_file_fpath, "r");
+    FILE* pid_file = fopen(pid_file_fpath, "w");
     if (fprintf(pid_file, "%d", getpid()) < 0) {
         perror("write to pid.txt");
         return FAILURE;
