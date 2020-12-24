@@ -39,37 +39,32 @@ static client_event_t *client_event_db[MAX_STORAGE][MAX_STORAGE] = {};
 int available_client_in_nw[MAX_STORAGE][MAX_STORAGE] = {};
 int available_network[MAX_STORAGE] = {};
 
-static void sig_handler(int signum) {
-	if (signum) {
-		process_exited = 1;
-	}
-	for (int i = 0; i < MAX_STORAGE; ++i) {
-		for (int j = 0; j < MAX_STORAGE; ++j) {
-			if (client_event_db[i][j] != NULL) {
-				event_del(client_event_db[i][j]->clt_recv_event);
-				free(client_event_db[i][j]->clt_recv_event);
-
-				event_del(client_event_db[i][j]->tun_recv_event);
-				free(client_event_db[i][j]->tun_recv_event);
-
-				free(client_event_db[i][j]);
-				client_event_db[i][j] = NULL;
-			}
-		}
-	}
+int delete_bridge(int network_id) {
 	char command[MAX_STORAGE];
 	char bridge_id_str[10] = {};
+	sprintf(bridge_id_str, "%d", network_id);
 
-	for (int i = 0; i < MAX_STORAGE; ++i) {
-		for (int j = 0; j < MAX_STORAGE; ++j) {
-			if (client_db[i][j] != NULL) {
-				free(client_db[i][j]);
-				client_db[i][j] = NULL;
-			}
-		}
+	strcpy(command, "ip link set bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " down");
+
+	if (system(command) != 0) {
+		return FAILURE;
 	}
 
-	exit(0);
+	printf("Bridge%s is down\n", bridge_id_str);
+
+	strncpy(command, "brctl delbr bridge", MAX_STORAGE);
+	strcat(command, bridge_id_str);
+
+	if (system(command) != 0) {
+		return FAILURE;
+	}
+
+	//TODO: clean available
+
+	printf("Deleted bridge%s\n", bridge_id_str);
+	return SUCCESS;
 }
 
 server_t *server_create(hserver_config_t *config)
@@ -111,7 +106,7 @@ server_t *server_create(hserver_config_t *config)
 
 	server->sock = sock;
 
-	FILE *config_file = fopen(config_fpath, "w");
+	FILE *config_file = fopen(config_fpath, "a+");
 	if (config_file == NULL) {
 			return NULL;
 	}
@@ -408,30 +403,34 @@ int delete_process(int network_id, char* del_net_name) {
 		return FAILURE;
 	}
 
-	char command[MAX_STORAGE];
-	char bridge_id_str[10] = {};
-	sprintf(bridge_id_str, "%d", network_id);
-
-	strcpy(command, "ip link set bridge");
-	strcat(command, bridge_id_str);
-	strcat(command, " down");
-
-	if (system(command) != 0) {
+	if (delete_bridge(network_id) == FAILURE) {
 		return FAILURE;
 	}
 
-	printf("Bridge%s is down\n", bridge_id_str);
+	// char command[MAX_STORAGE];
+	// char bridge_id_str[10] = {};
+	// sprintf(bridge_id_str, "%d", network_id);
 
-	strncpy(command, "brctl delbr bridge", MAX_STORAGE);
-	strcat(command, bridge_id_str);
+	// strcpy(command, "ip link set bridge");
+	// strcat(command, bridge_id_str);
+	// strcat(command, " down");
 
-	if (system(command) != 0) {
-		return FAILURE;
-	}
+	// if (system(command) != 0) {
+	// 	return FAILURE;
+	// }
 
-	//TODO: clean available
+	// printf("Bridge%s is down\n", bridge_id_str);
 
-	printf("Deleted bridge%s\n", bridge_id_str);
+	// strncpy(command, "brctl delbr bridge", MAX_STORAGE);
+	// strcat(command, bridge_id_str);
+
+	// if (system(command) != 0) {
+	// 	return FAILURE;
+	// }
+
+	// //TODO: clean available
+
+	// printf("Deleted bridge%s\n", bridge_id_str);
 
 
 	return SUCCESS;
@@ -914,16 +913,6 @@ error:
 	return FAILURE;
 }
 
-int process_setup_signals() {
-	struct sigaction action = {0};
-	action.sa_handler = sig_handler;
-	if (sigaction(SIGTERM, &action, NULL) == -1)
-		return -1;
-	if (sigaction(SIGINT, &action, NULL) == -1)
-		return -1;
-	return 0;
-}
-
 
 int server_run(hserver_config_t *config)
 {
@@ -969,4 +958,62 @@ void free_client_db()
 			}
 		}
 	}
+}
+
+static void sig_handler(int signum) {
+	if (signum) {
+		process_exited = 1;
+	}
+
+	for (int i = 0; i < MAX_STORAGE; ++i) {
+		for (int j = 0; j < MAX_STORAGE; ++j) {
+			if (client_event_db[i][j] != NULL) {
+				event_del(client_event_db[i][j]->clt_recv_event);
+				free(client_event_db[i][j]->clt_recv_event);
+
+				event_del(client_event_db[i][j]->tun_recv_event);
+				free(client_event_db[i][j]->tun_recv_event);
+
+				free(client_event_db[i][j]);
+				client_event_db[i][j] = NULL;
+			}
+		}
+	}
+
+	for (int i = 0; i < MAX_STORAGE; ++i) {
+		for (int j = 0; j < MAX_STORAGE; ++j) {
+			if (client_db[i][j] != NULL) {
+				free(client_db[i][j]);
+				client_db[i][j] = NULL;
+			}
+		}
+	}
+
+	for (int i = 0; i < MAX_STORAGE; i++) {
+		if (available_network[i] == 1) {
+			for (int j = 0; j < MAX_STORAGE; j++) {
+				if (available_client_in_nw[i][j] == 1) {
+					storage_id_t clt_from_nw = {i, j};
+					if (disconnect_process(&clt_from_nw) == FAILURE) {
+						puts("Error occured while disconnecting client");
+						exit(1);
+					}
+				}
+			}
+			delete_bridge(i);
+		}
+	}
+	
+
+	exit(0);
+}
+
+int process_setup_signals() {
+	struct sigaction action = {0};
+	action.sa_handler = sig_handler;
+	if (sigaction(SIGTERM, &action, NULL) == -1)
+		return -1;
+	if (sigaction(SIGINT, &action, NULL) == -1)
+		return -1;
+	return 0;
 }
