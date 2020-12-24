@@ -343,6 +343,9 @@ int cmd_choice(char* cmd, char* response, int socket) {
 }
 
 int client_run_cmd(char* cmd, network_id_t net_id, char* param[]) {
+    if (process_setup_signals() == -1)
+        return FAILURE;
+
     int clt_socket;
     clt_socket  = socket(AF_INET, SOCK_STREAM, 0);
     if (clt_socket == -1) {
