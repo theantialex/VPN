@@ -31,7 +31,7 @@ typedef enum
 	SAME_CMD_ID = 4
 } CMD;
 
-// volatile int process_exited = 0;
+volatile int process_exited = 0;
 
 static client_in_t *client_db[MAX_STORAGE][MAX_STORAGE] = {};
 static client_event_t *client_event_db[MAX_STORAGE][MAX_STORAGE] = {};
@@ -39,13 +39,38 @@ static client_event_t *client_event_db[MAX_STORAGE][MAX_STORAGE] = {};
 int available_client_in_nw[MAX_STORAGE][MAX_STORAGE] = {};
 int available_network[MAX_STORAGE] = {};
 
-// static void sigterm_handler(int signum) {
-// 	if (signum) {
-// 		process_exited = 1;
-// 	} else {
-// 		process_exited = 1;
-// 	}
-// }
+static void sig_handler(int signum) {
+	if (signum) {
+		process_exited = 1;
+	}
+	for (int i = 0; i < MAX_STORAGE; ++i) {
+		for (int j = 0; j < MAX_STORAGE; ++j) {
+			if (client_event_db[i][j] != NULL) {
+				event_del(client_event_db[i][j]->clt_recv_event);
+				free(client_event_db[i][j]->clt_recv_event);
+
+				event_del(client_event_db[i][j]->tun_recv_event);
+				free(client_event_db[i][j]->tun_recv_event);
+
+				free(client_event_db[i][j]);
+				client_event_db[i][j] = NULL;
+			}
+		}
+	}
+	char command[MAX_STORAGE];
+	char bridge_id_str[10] = {};
+
+	for (int i = 0; i < MAX_STORAGE; ++i) {
+		for (int j = 0; j < MAX_STORAGE; ++j) {
+			if (client_db[i][j] != NULL) {
+				free(client_db[i][j]);
+				client_db[i][j] = NULL;
+			}
+		}
+	}
+
+	exit(0);
+}
 
 server_t *server_create(hserver_config_t *config)
 {
@@ -889,6 +914,17 @@ error:
 	return FAILURE;
 }
 
+int process_setup_signals() {
+	struct sigaction action = {0};
+	action.sa_handler = sig_handler;
+	if (sigaction(SIGTERM, &action, NULL) == -1)
+		return -1;
+	if (sigaction(SIGINT, &action, NULL) == -1)
+		return -1;
+	return 0;
+}
+
+
 int server_run(hserver_config_t *config)
 {
 	server_t *server = server_create(config);
@@ -896,6 +932,9 @@ int server_run(hserver_config_t *config)
 	{
 		goto error;
 	}
+
+	if (process_setup_signals() == -1)
+		goto error;
 
 	storage_id_t client_db_id = {-1, -1};
 
