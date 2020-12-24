@@ -37,10 +37,7 @@ static client_event_t* client_event;
 
 volatile int process_clt_exited = 0;
 
-static void sigterm_handler(int signum) {
-    if (signum) {
-		process_clt_exited = 1;
-	}
+void destroy(){
     event_del(client_event->clt_recv_event);
     free(client_event->clt_recv_event);
 
@@ -48,6 +45,13 @@ static void sigterm_handler(int signum) {
     free(client_event->tun_recv_event);
 
     remove(pid_file_fpath);
+}
+
+static void sigterm_handler(int signum) {
+    if (signum) {
+		process_clt_exited = 1;
+	}
+    destroy();
     exit(0);
 }
 
@@ -161,20 +165,18 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
     }
     printf("Read %d of data\n", n);
 
-    // printf("Received %d of data\n", n);
-	// int i = 0;
-	// puts("Packet:");
-	// while(i < n) {
-	// 	printf("%02x", buffer[i]);
-	//     i++;
-	// }
-	// puts("");
-
-    if (write(recv_clt_param->socket, buffer, n) == -1) {
-        perror("write()");
+    if (n == 0) {
+        puts("Server is down");
+        destroy();
         exit(1);
+
+    } else {
+        if (write(recv_clt_param->socket, buffer, n) == -1) {
+            perror("write()");
+            exit(1);
+        }
+        printf("Sent %d of data\n", n);
     }
-    printf("Sent %d of data\n", n);
 }
 
 int event_anticipation(int tun_socket, int client_server_socket) {

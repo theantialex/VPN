@@ -633,6 +633,20 @@ error:
 	return FAILURE;
 }
 
+int find_client(int client_sock, int tun_sock, storage_id_t* store) {
+	for (int i = 0; i < MAX_STORAGE; ++i) {
+		for (int j = 0; j < MAX_STORAGE; ++j) {
+			if ((client_db[i][j]->client_socket = client_sock) &&
+			(client_db[i][j]->tun_socket == tun_sock)) {
+				store->client_id = j;
+				store->network_id = i;
+				return SUCCESS;
+			}
+		}
+	}
+	return FAILURE;
+}
+
 void client_recv_event_handler(int client_server_socket, short flags, int *params)
 {
 	puts("Received ip packet on socket");
@@ -652,14 +666,22 @@ void client_recv_event_handler(int client_server_socket, short flags, int *param
 		exit(1);
 	}
 	printf("Read %d of data\n", n);
-
-	int m = write(*params, buffer, n);
-	if (m == -1)
-	{
-		perror("write()");
-		exit(1);
+	if (n == 0) {
+		storage_id_t * store = malloc(sizeof(storage_id_t *));
+		find_client(client_server_socket, *params, store);
+		if (disconnect_process(store) == FAILURE) {
+			exit(1);
+		}
+		printf("Client disconnected\n");
+	} else {
+		int m = write(*params, buffer, n);
+		if (m == -1)
+		{
+			perror("write()");
+			exit(1);
+		}
+		printf("Sent %d of data\n", m);
 	}
-	printf("Sent %d of data\n", m);
 }
 
 void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s *params)
