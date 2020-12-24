@@ -325,7 +325,7 @@ int cmd_choice(char* cmd, char* response, int socket) {
     if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
         return network_delete_response(response);
     }
-    if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
+    if (strncmp(cmd, DISCONNECT_CMD, strlen(cmd)) == 0) {
         return network_disconnect_response(response);
     }
 

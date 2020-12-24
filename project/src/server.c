@@ -306,7 +306,7 @@ int delete_process(int network_id) {
 	return SUCCESS;
 }
 
-int disconnect_process( storage_id_t * db_id) {
+int disconnect_process(storage_id_t* db_id, char* response) {
 	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
 	//int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
 	client_db[db_id->network_id][db_id->client_id] = NULL;
@@ -323,6 +323,7 @@ int disconnect_process( storage_id_t * db_id) {
 	strcat(command, bridge_id_str);
 	strcat(command, "_");
 	strcat(command, tap_id_str);
+	printf("Deleted server_tap%s_%s from bridge%s\n", bridge_id_str, tap_id_str, bridge_id_str);
 
 	if (system(command) != 0) {
 		return FAILURE;
@@ -342,7 +343,7 @@ int disconnect_process( storage_id_t * db_id) {
 	// }
 	// remove from config 
 
-
+	strncpy(response, DISCONNECT_SUCCESS, strlen(response));
 	return SUCCESS;
 }
 
@@ -453,7 +454,7 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 	if (strncmp(cmd, DISCONNECT_CMD, strlen(cmd)) == 0)
 	{
 		*cmd_id = DISCONNECT_CMD_ID;
-		if (disconnect_process(clt_db_id) == FAILURE)
+		if (disconnect_process(clt_db_id, response) == FAILURE)
 		{
 			puts("Can't process disconnect cmd. Something went wrong");
 		}
@@ -748,6 +749,12 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
 		{
 			perror("send");
+			return;
+		}
+	}
+	if (params->cmd_id == DISCONNECT_CMD_ID)	{
+		if (send_cmd_response(params->client_server_socket, params->response) == FAILURE)
+		{
 			return;
 		}
 	}
