@@ -20,6 +20,8 @@
 
 #define EMPTY_RESPONSE "Can't process cmd"
 #define NOT_EXIST_RESPONSE "Can't process cmd. Network or client doesn't exist"
+#define NW_NOT_EXIST_RESPONSE "Can't process cmd. Network doesn't exist"
+
 
 #include <stdint.h>
 #include <stdio.h>

@@ -32,7 +32,7 @@
 #define net_config_fpath "./project/client_data/net_config.txt"
 
 #define ACCESS_DENIED "Access denied"
-#define TUN_NAME "tun0"
+#define TUN_NAME "tap0"
 #define BUFSIZE 16536
 
 client_t* client_create(int socket, network_id_t net_id) {
@@ -98,7 +98,7 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
         perror("read()");
         exit(1);
     }
-    puts("Got something in tunnel recv event handler!");
+    puts("Received ip packet on tap interface");
     memcpy(ip_packet, buffer, n);
     packet_len = n;
 
@@ -108,15 +108,16 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
     //     packet_len += n;
     // }
 
-    printf("ip p = %d\n", packet_len);
+    printf("Read %d of data\n", packet_len);
     if (write(recv_tun_param->socket, ip_packet, packet_len) == -1) {
         perror("send()");
         exit(1);
     }
+    printf("Sent %d of data\n", packet_len);
 }
 
 void recv_clt_event_handler(int client_server_socket, short flags, struct recv_param_s* recv_clt_param) {
-    puts("Got something in client recv event handler!");
+    puts("Received ip packet on socket");
 
     if (flags == 0) {
         perror("flags");
@@ -129,7 +130,7 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
         perror("recv_all()");
         exit(1);
     }
-    printf("ip p = %d\n", n);
+    printf("Read %d of data\n", n);
 
     // printf("Received %d of data\n", n);
 	// int i = 0;
@@ -144,6 +145,7 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
         perror("write()");
         exit(1);
     }
+    printf("Sent %d of data\n", n);
 }
 
 int event_anticipation(int tun_socket, int client_server_socket) {

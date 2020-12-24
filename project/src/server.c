@@ -212,8 +212,12 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 	if (client_identify(network_id, access_result) == FAILURE)
 	{
 		strcpy(access_result, "Access denied");
+
 		client_db_id->network_id = -1;
 		client_db_id->client_id = -1;
+
+		strncpy(response, access_result, MAX_STORAGE);
+
 		return FAILURE;
 	}
 
@@ -234,6 +238,8 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 		puts("The network is full. No access given");
 		client_db_id->network_id = -1;
 		client_db_id->client_id = -1;
+
+		strncpy(response, access_result, MAX_STORAGE);
 		return FAILURE;
 	}
 
@@ -283,12 +289,69 @@ error:
 	return FAILURE;
 }
 
+int disconnect_process(storage_id_t* db_id) {
+	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
+	// close(client_server_sock);
+	// int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
+	// close(tunnel_sock);
+
+	event_del(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
+    free(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
+
+	event_del(client_event_db[db_id->network_id][db_id->client_id]->tun_recv_event);
+    free(client_event_db[db_id->network_id][db_id->client_id]->tun_recv_event);
+
+	free(client_event_db[db_id->network_id][db_id->client_id]);
+	client_event_db[db_id->network_id][db_id->client_id] = NULL;
+	//TODO: clean available
+	client_db[db_id->network_id][db_id->client_id] = NULL;
+
+	char command[255];
+	char bridge_id_str[10] = {};
+	char tap_id_str[10] = {};
+	sprintf(bridge_id_str, "%d", db_id->network_id);
+	sprintf(tap_id_str, "%d", db_id->client_id);
+
+	strcpy(command, "brctl delif bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " server_tap");
+	strcat(command, bridge_id_str);
+	strcat(command, "_");
+	strcat(command, tap_id_str);
+
+	if (system(command) != 0) {
+		return FAILURE;
+	}
+	printf("Deleted server_tap%s_%s from bridge%s\n", bridge_id_str, tap_id_str, bridge_id_str);
+
+	// close(tunnel_sock);
+	// unlink client_server_sock
+
+	// strcpy(command, "ip tuntap del server_tap");
+	// strcat(command, bridge_id_str);
+	// strcat(command, "_");
+	// strcat(command, tap_id_str);
+	// strcat(command, " mod tap");
+
+	// if (system(command) != 0) {
+	// 	return FAILURE;
+	// }
+	// remove from config 
+
+	return SUCCESS;
+}
+
 int delete_process(int network_id, char* del_net_name) {
 	if (network_id < 0) {
 		return FAILURE;
 	}
 
-	//TODO: disconnect all
+	for (int i = 0; i < MAX_STORAGE; i++) {
+		if (available_client_in_nw[network_id][i] == 1) {
+			storage_id_t clt_from_nw = {network_id, i};
+			disconnect_process(&clt_from_nw);
+		}
+	}
 
 	FILE *config_file = fopen(config_fpath, "r");
 	if (config_file == NULL)
@@ -345,63 +408,6 @@ int delete_process(int network_id, char* del_net_name) {
 
 	printf("Deleted bridge%s\n", bridge_id_str);
 
-
-	return SUCCESS;
-}
-
-int disconnect_process(storage_id_t* db_id, char* response) {
-	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
-	// close(client_server_sock);
-	// int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
-	// close(tunnel_sock);
-	
-	if (db_id->network_id == -1 || db_id->client_id == -1) {
-		strncpy(response, NOT_EXIST_RESPONSE, MAX_STORAGE);
-		return FAILURE;
-	}
-
-	event_del(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
-    free(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
-
-	event_del(client_event_db[db_id->network_id][db_id->client_id]->tun_recv_event);
-    free(client_event_db[db_id->network_id][db_id->client_id]->tun_recv_event);
-
-	free(client_event_db[db_id->network_id][db_id->client_id]);
-	client_event_db[db_id->network_id][db_id->client_id] = NULL;
-	//TODO: clean available
-	client_db[db_id->network_id][db_id->client_id] = NULL;
-
-	char command[255];
-	char bridge_id_str[10] = {};
-	char tap_id_str[10] = {};
-	sprintf(bridge_id_str, "%d", db_id->network_id);
-	sprintf(tap_id_str, "%d", db_id->client_id);
-
-	strcpy(command, "brctl delif bridge");
-	strcat(command, bridge_id_str);
-	strcat(command, " server_tap");
-	strcat(command, bridge_id_str);
-	strcat(command, "_");
-	strcat(command, tap_id_str);
-
-	if (system(command) != 0) {
-		return FAILURE;
-	}
-	printf("Deleted server_tap%s_%s from bridge%s\n", bridge_id_str, tap_id_str, bridge_id_str);
-
-	// close(tunnel_sock);
-	// unlink client_server_sock
-
-	// strcpy(command, "ip tuntap del server_tap");
-	// strcat(command, bridge_id_str);
-	// strcat(command, "_");
-	// strcat(command, tap_id_str);
-	// strcat(command, " mod tap");
-
-	// if (system(command) != 0) {
-	// 	return FAILURE;
-	// }
-	// remove from config 
 
 	return SUCCESS;
 }
@@ -476,7 +482,10 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 
 	if (strncmp(cmd, DELETE_CMD, strlen(cmd)) == 0) {
 		*cmd_id = DELETE_CMD_ID;
-		if (delete_process(clt_db_id->network_id, net_id.name) == FAILURE)
+		if (clt_db_id->network_id == -1) {
+			strncpy(response, NW_NOT_EXIST_RESPONSE, MAX_STORAGE);
+		}
+		else if (delete_process(clt_db_id->network_id, net_id.name) == FAILURE)
 		{
 			puts("Can't process delete cmd. Something went wrong");
 			strncpy(response, DELETE_FAILURE, MAX_STORAGE);
@@ -516,7 +525,10 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 	if (strncmp(cmd, DISCONNECT_CMD, strlen(cmd)) == 0)
 	{
 		*cmd_id = DISCONNECT_CMD_ID;
-		if (disconnect_process(clt_db_id, response) == FAILURE)
+		if (clt_db_id->network_id == -1 || clt_db_id->client_id == -1) {
+			strncpy(response, NOT_EXIST_RESPONSE, MAX_STORAGE);
+		}
+		else if (disconnect_process(clt_db_id) == FAILURE)
 		{
 			puts("Can't process disconnect cmd. Something went wrong");
 		} else {
@@ -565,7 +577,7 @@ int accept_event_handler(int server_sock, int *client_server_socket, int *cmd_id
 
 	char s[INET6_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(((struct sockaddr_in *)&client)->sin_addr), s, sizeof(s));
-	printf("Got a connection from %s\n", s);
+	printf("Accepted connection from %s\n", s);
 
 	if (*client_server_socket == -1)
 	{
@@ -586,7 +598,7 @@ error:
 
 void client_recv_event_handler(int client_server_socket, short flags, struct clt_recv_param_s *params)
 {
-	puts("Got something in clt_recv event handler!");
+	puts("Received ip packet on socket");
 
 	if (flags == 0)
 	{
@@ -602,7 +614,7 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
 		perror("read()");
 		exit(1);
 	}
-	printf("Received %d of data\n", n);
+	printf("Read %d of data\n", n);
 
 	int m = write(params->server_tun_socket, buffer, n);
 	if (m == -1)
@@ -615,7 +627,7 @@ void client_recv_event_handler(int client_server_socket, short flags, struct clt
 
 void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s *params)
 {
-	puts("Got something in tun_recv event handler!");
+	puts("Received ip packet on tap interface");
 
 	if (flags == 0)
 	{
@@ -631,7 +643,7 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 		perror("read()");
 		exit(1);
 	}
-	printf("Received %d of data\n", n);
+	printf("Read %d of data\n", n);
 	// int i = 0;
 	// puts("Packet:");
 	// while(i < n) {
