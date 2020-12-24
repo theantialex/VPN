@@ -296,8 +296,6 @@ int set_connection_process(char* get_addr, int socket) {
     }
     fclose(pid_file);
 
-
-    
     int tun_socket = create_client_tun(TUN_NAME, get_addr);
     if (event_anticipation(tun_socket, socket) == FAILURE) {
         return FAILURE;

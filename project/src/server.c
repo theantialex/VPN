@@ -352,10 +352,6 @@ error:
 }
 
 int disconnect_process(storage_id_t* db_id) {
-	// int client_server_sock = client_db[db_id->network_id][db_id->client_id]->client_socket;
-	// close(client_server_sock);
-	// int tunnel_sock = client_db[db_id->network_id][db_id->client_id]->tun_socket;
-	// close(tunnel_sock);
 
 	event_del(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
     free(client_event_db[db_id->network_id][db_id->client_id]->clt_recv_event);
@@ -365,7 +361,7 @@ int disconnect_process(storage_id_t* db_id) {
 
 	free(client_event_db[db_id->network_id][db_id->client_id]);
 	client_event_db[db_id->network_id][db_id->client_id] = NULL;
-	//TODO: clean available
+
 	free(client_db[db_id->network_id][db_id->client_id]);
 	client_db[db_id->network_id][db_id->client_id] = NULL;
 
@@ -387,19 +383,26 @@ int disconnect_process(storage_id_t* db_id) {
 	}
 	printf("Deleted server_tap%s_%s from bridge%s\n", bridge_id_str, tap_id_str, bridge_id_str);
 
-	// close(tunnel_sock);
-	// unlink client_server_sock
+	strcpy(command, "ip link set server_tap");
+	strcat(command, bridge_id_str);
+	strcat(command, "_");
+	strcat(command, tap_id_str);
+	strcat(command, " down");
 
-	// strcpy(command, "ip tuntap del server_tap");
-	// strcat(command, bridge_id_str);
-	// strcat(command, "_");
-	// strcat(command, tap_id_str);
-	// strcat(command, " mod tap");
+	if (system(command) != 0) {
+		return FAILURE;
+	}
 
-	// if (system(command) != 0) {
-	// 	return FAILURE;
-	// }
-	// remove from config 
+	strcpy(command, "ip link delete server_tap");
+	strcat(command, bridge_id_str);
+	strcat(command, "_");
+	strcat(command, tap_id_str);
+
+	if (system(command) != 0) {
+		return FAILURE;
+	}
+
+	available_client_in_nw[db_id->network_id][db_id->client_id] = 0;
 
 	return SUCCESS;
 }
@@ -449,32 +452,7 @@ int delete_process(int network_id, char* del_net_name) {
 	if (delete_bridge(network_id) == FAILURE) {
 		return FAILURE;
 	}
-
-	// char command[MAX_STORAGE];
-	// char bridge_id_str[10] = {};
-	// sprintf(bridge_id_str, "%d", network_id);
-
-	// strcpy(command, "ip link set bridge");
-	// strcat(command, bridge_id_str);
-	// strcat(command, " down");
-
-	// if (system(command) != 0) {
-	// 	return FAILURE;
-	// }
-
-	// printf("Bridge%s is down\n", bridge_id_str);
-
-	// strncpy(command, "brctl delbr bridge", MAX_STORAGE);
-	// strcat(command, bridge_id_str);
-
-	// if (system(command) != 0) {
-	// 	return FAILURE;
-	// }
-
-	// //TODO: clean available
-
-	// printf("Deleted bridge%s\n", bridge_id_str);
-
+	available_network[network_id] = 0;
 
 	return SUCCESS;
 }
