@@ -39,6 +39,37 @@ static client_event_t *client_event_db[MAX_STORAGE][MAX_STORAGE] = {};
 int available_client_in_nw[MAX_STORAGE][MAX_STORAGE] = {};
 int available_network[MAX_STORAGE] = {};
 
+int create_bridge(int network_id)
+{
+	char command[255];
+	char bridge_id_str[10] = {};
+	sprintf(bridge_id_str, "%d", network_id);
+
+	strcpy(command, "ip link add name bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " type bridge");
+
+
+	if (system(command) != 0)
+	{
+		return FAILURE;
+	}
+	printf("Bridge%s created\n", bridge_id_str);
+
+	strcpy(command, "ip link set bridge");
+	strcat(command, bridge_id_str);
+	strcat(command, " up");
+
+	if (system(command) != 0)
+	{
+		return FAILURE;
+	}
+
+	printf("Bridge%s is up\n", bridge_id_str);
+
+	return SUCCESS;
+}
+
 int delete_bridge(int network_id) {
 	char command[MAX_STORAGE];
 	char bridge_id_str[10] = {};
@@ -86,7 +117,7 @@ server_t *server_create(hserver_config_t *config)
 	addr.sin_port = htons(config->port);
 	addr.sin_addr.s_addr = INADDR_ANY;
 
-	puts("Server created");
+	puts("Started server");
 
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1)
 	{
@@ -95,8 +126,6 @@ server_t *server_create(hserver_config_t *config)
 
 	if (listen(sock, config->backlog) == -1)
 		goto error;
-
-	puts("Listening...");
 
 	server_t *server = calloc(1, sizeof(server_t));
 	if (server == NULL)
@@ -108,7 +137,18 @@ server_t *server_create(hserver_config_t *config)
 
 	FILE *config_file = fopen(config_fpath, "a+");
 	if (config_file == NULL) {
-			return NULL;
+		return NULL;
+	}
+
+	char net_name[MAX_STORAGE];
+	char net_password[MAX_STORAGE];
+	char net_addr[MAX_STORAGE];
+
+	int i = 0;
+
+	while (fscanf(config_file, "%s %s %s", net_name, net_password, net_addr) == 3) {
+		available_network[i] = 1;
+		create_bridge(i);
 	}
 	fclose(config_file);
 
@@ -121,6 +161,8 @@ server_t *server_create(hserver_config_t *config)
 	fclose(active_clients_file);
 
 	server->base = event_base_new();
+
+	puts("Listening...");
 	return server;
 
 error:
@@ -252,6 +294,7 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 	int net_storage_id = octs[1];
 
 	int client_storage_id = get_first_available_client(net_storage_id);
+
 	if (client_storage_id == -1)
 	{
 		strcpy(access_result, "Access denied");
@@ -265,7 +308,6 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 
 	octs[3] = client_storage_id + 1;
 	sprintf(access_result, "%d.%d.%d.%d/%d", octs[0], octs[1], octs[2], octs[3], mask);
-
 	if (client_storage_id != -1)
 	{
 		char *tun_name = "server_tap";
@@ -276,7 +318,7 @@ int connect_process(network_id_t *network_id, int server_socket, int client_sock
 		char res_name[20];
 
 		char network_id_str[10] = {};
-		sprintf(network_id_str, "%d", client_db_id->network_id);
+		sprintf(network_id_str, "%d", net_storage_id);
 		snprintf(res_name, 20, "%s%s", tun_name, network_id_str);
 		strcat(res_name, "_");
 		strcat(res_name, tun_id_str);
@@ -324,6 +366,7 @@ int disconnect_process(storage_id_t* db_id) {
 	free(client_event_db[db_id->network_id][db_id->client_id]);
 	client_event_db[db_id->network_id][db_id->client_id] = NULL;
 	//TODO: clean available
+	free(client_db[db_id->network_id][db_id->client_id]);
 	client_db[db_id->network_id][db_id->client_id] = NULL;
 
 	char command[255];
@@ -538,6 +581,7 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 			  }
 		}
 	}
+
 	if (strncmp(cmd, CONNECT_CMD, strlen(cmd)) == 0)
 	{
 		*cmd_id = CONNECT_CMD_ID;
@@ -546,6 +590,7 @@ int process_cmd(int clt_sock, int server_sock, int *cmd_id, char *response, stor
 			puts("Can't process connect cmd. Something went wrong");
 		}
 	}
+
 	if (strncmp(cmd, DISCONNECT_CMD, strlen(cmd)) == 0)
 	{
 		*cmd_id = DISCONNECT_CMD_ID;
@@ -585,38 +630,6 @@ int send_cmd_response(int sock, char *response)
 
 error:
 	printf("Error occured while sending cmd response: %s\n", strerror(errno));
-	return FAILURE;
-}
-
-int accept_event_handler(int server_sock, int *client_server_socket, int *cmd_id, char *response, storage_id_t *clt_db_id)
-{
-	fcntl(server_sock, F_SETFL, O_NONBLOCK);
-
-	struct sockaddr_in client;
-	socklen_t len = sizeof(client);
-	if ((*client_server_socket = accept(server_sock, (struct sockaddr *)&client, &len)) <= 0)
-	{
-		return FAILURE;
-	}
-
-	char s[INET6_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(((struct sockaddr_in *)&client)->sin_addr), s, sizeof(s));
-	printf("Accepted connection from %s\n", s);
-
-	if (*client_server_socket == -1)
-	{
-		goto error;
-	}
-
-	if (process_cmd(*client_server_socket, server_sock, cmd_id, response, clt_db_id) == FAILURE)
-	{
-		goto error;
-	}
-
-	return SUCCESS;
-
-error:
-	printf("Error occured while accepting event handler: %s\n", strerror(errno));
 	return FAILURE;
 }
 
@@ -685,37 +698,6 @@ void tun_recv_event_handler(int tun_socket, short flags, struct tun_recv_param_s
 	printf("Sent %d of data\n", m);
 }
 
-int create_bridge(storage_id_t *db_id)
-{
-	char command[255];
-	char bridge_id_str[10] = {};
-	sprintf(bridge_id_str, "%d", db_id->network_id);
-
-	strcpy(command, "ip link add name bridge");
-	strcat(command, bridge_id_str);
-	strcat(command, " type bridge");
-
-
-	if (system(command) != 0)
-	{
-		return FAILURE;
-	}
-	printf("Bridge%s created\n", bridge_id_str);
-
-	strcpy(command, "ip link set bridge");
-	strcat(command, bridge_id_str);
-	strcat(command, " up");
-
-	if (system(command) != 0)
-	{
-		return FAILURE;
-	}
-
-	printf("Bridge%s is up\n", bridge_id_str);
-
-	return SUCCESS;
-}
-
 int add_tun_to_bridge(storage_id_t *db_id)
 {
 	char command[255];
@@ -762,10 +744,9 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 
 	char s[INET6_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(((struct sockaddr_in *)&client)->sin_addr), s, sizeof(s));
-	printf("Got a connection from %s\n", s);
+	printf("Accepted connection from %s\n", s);
 
 	strncpy(params->response, EMPTY_RESPONSE, MAX_STORAGE);
-
 
 	if (process_cmd(params->client_server_socket, server_sock, &params->cmd_id, params->response, params->clt_db_id) == FAILURE)
 	{
@@ -775,7 +756,7 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 
 	if (params->cmd_id == CREATE_CMD_ID)
 	{
-		if (create_bridge(params->clt_db_id) == FAILURE)
+		if (create_bridge(params->clt_db_id->network_id) == FAILURE)
 		{
 			perror("bridge creation");
 			return;
@@ -965,29 +946,33 @@ static void sig_handler(int signum) {
 		process_exited = 1;
 	}
 
-	for (int i = 0; i < MAX_STORAGE; ++i) {
-		for (int j = 0; j < MAX_STORAGE; ++j) {
-			if (client_event_db[i][j] != NULL) {
-				event_del(client_event_db[i][j]->clt_recv_event);
-				free(client_event_db[i][j]->clt_recv_event);
+	// for (int i = 0; i < MAX_STORAGE; ++i) {
+	// 	for (int j = 0; j < MAX_STORAGE; ++j) {
+	// 		if (available_client_in_nw[i][j] == 1) {
+	// 			if (client_event_db[i][j] != NULL) {
+	// 				event_del(client_event_db[i][j]->clt_recv_event);
+	// 				free(client_event_db[i][j]->clt_recv_event);
 
-				event_del(client_event_db[i][j]->tun_recv_event);
-				free(client_event_db[i][j]->tun_recv_event);
+	// 				event_del(client_event_db[i][j]->tun_recv_event);
+	// 				free(client_event_db[i][j]->tun_recv_event);
 
-				free(client_event_db[i][j]);
-				client_event_db[i][j] = NULL;
-			}
-		}
-	}
+	// 				free(client_event_db[i][j]);
+	// 				client_event_db[i][j] = NULL;
+	// 			}
+	// 		}
+	// 	}
+	// }
 
-	for (int i = 0; i < MAX_STORAGE; ++i) {
-		for (int j = 0; j < MAX_STORAGE; ++j) {
-			if (client_db[i][j] != NULL) {
-				free(client_db[i][j]);
-				client_db[i][j] = NULL;
-			}
-		}
-	}
+	// for (int i = 0; i < MAX_STORAGE; ++i) {
+	// 	for (int j = 0; j < MAX_STORAGE; ++j) {
+	// 		if (available_client_in_nw[i][j] == 1) {
+	// 			if (client_db[i][j] != NULL) {
+	// 				free(client_db[i][j]);
+	// 				client_db[i][j] = NULL;
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	for (int i = 0; i < MAX_STORAGE; i++) {
 		if (available_network[i] == 1) {
@@ -1002,8 +987,7 @@ static void sig_handler(int signum) {
 			}
 			delete_bridge(i);
 		}
-	}
-	
+	}	
 
 	exit(0);
 }
