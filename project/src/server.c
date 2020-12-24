@@ -946,34 +946,6 @@ static void sig_handler(int signum) {
 		process_exited = 1;
 	}
 
-	// for (int i = 0; i < MAX_STORAGE; ++i) {
-	// 	for (int j = 0; j < MAX_STORAGE; ++j) {
-	// 		if (available_client_in_nw[i][j] == 1) {
-	// 			if (client_event_db[i][j] != NULL) {
-	// 				event_del(client_event_db[i][j]->clt_recv_event);
-	// 				free(client_event_db[i][j]->clt_recv_event);
-
-	// 				event_del(client_event_db[i][j]->tun_recv_event);
-	// 				free(client_event_db[i][j]->tun_recv_event);
-
-	// 				free(client_event_db[i][j]);
-	// 				client_event_db[i][j] = NULL;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// for (int i = 0; i < MAX_STORAGE; ++i) {
-	// 	for (int j = 0; j < MAX_STORAGE; ++j) {
-	// 		if (available_client_in_nw[i][j] == 1) {
-	// 			if (client_db[i][j] != NULL) {
-	// 				free(client_db[i][j]);
-	// 				client_db[i][j] = NULL;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	for (int i = 0; i < MAX_STORAGE; i++) {
 		if (available_network[i] == 1) {
 			for (int j = 0; j < MAX_STORAGE; j++) {

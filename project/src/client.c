@@ -15,7 +15,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <signal.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/select.h>
@@ -33,7 +33,33 @@
 #define TUN_NAME "tap0"
 #define BUFSIZE 16536
 
-// static client_event_t* client_event;
+static client_event_t* client_event;
+
+volatile int process_clt_exited = 0;
+
+static void sigterm_handler(int signum) {
+    if (signum) {
+		process_clt_exited = 1;
+	}
+    event_del(client_event->clt_recv_event);
+    free(client_event->clt_recv_event);
+
+	event_del(client_event->tun_recv_event);
+    free(client_event->tun_recv_event);
+
+    remove(pid_file_fpath);
+    exit(0);
+}
+
+int process_setup_signals() {
+	struct sigaction action = {0};
+	action.sa_handler = sigterm_handler;
+	if (sigaction(SIGTERM, &action, NULL) == -1)
+		return -1;
+	if (sigaction(SIGINT, &action, NULL) == -1)
+		return -1;
+	return 0;
+}
 
 client_t* client_create(int socket, network_id_t net_id) {
     client_t* client = calloc(1, sizeof(*client));
@@ -154,6 +180,7 @@ void recv_clt_event_handler(int client_server_socket, short flags, struct recv_p
 int event_anticipation(int tun_socket, int client_server_socket) {
     
     struct event_base* base = event_base_new();
+    client_event = malloc(sizeof(struct client_event_t*));
     if (!base) {
         goto error;
     }
@@ -166,6 +193,7 @@ int event_anticipation(int tun_socket, int client_server_socket) {
     if (!read_tun_event) {
         goto error;
     }
+    client_event->tun_recv_event = read_tun_event;
 
     if (event_add(read_tun_event, NULL) < 0) {
         goto error;
@@ -176,6 +204,7 @@ int event_anticipation(int tun_socket, int client_server_socket) {
     if (!recv_clt_event) {
         goto error;
     }
+    client_event->clt_recv_event = recv_clt_event;
 
     if (event_add(recv_clt_event, NULL) < 0) {
         goto error;
