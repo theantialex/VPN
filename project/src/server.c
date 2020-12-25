@@ -92,8 +92,6 @@ int delete_bridge(int network_id) {
 		return FAILURE;
 	}
 
-	//TODO: clean available
-
 	printf("Deleted bridge%s\n", bridge_id_str);
 	return SUCCESS;
 }
@@ -149,16 +147,9 @@ server_t *server_create(hserver_config_t *config)
 	while (fscanf(config_file, "%s %s %s", net_name, net_password, net_addr) == 3) {
 		available_network[i] = 1;
 		create_bridge(i);
+		i++;
 	}
 	fclose(config_file);
-
-	FILE *active_clients_file = fopen(active_clients_fpath, "w");
-	if (active_clients_file == NULL)
-	{
-		free(server);
-		goto error;
-	}
-	fclose(active_clients_file);
 
 	server->base = event_base_new();
 
@@ -795,7 +786,6 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 
 		int client_server_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->client_socket;
 		int tunnel_sock = client_db[params->clt_db_id->network_id][params->clt_db_id->client_id]->tun_socket;
-		// printf("client sock %d tunnel sock %d\n", client_server_sock, tunnel_sock);
 
 		struct event_base *base = params->base; 
 		if (!base)
@@ -803,9 +793,6 @@ void server_accept_event_handler(int server_sock, short flags, struct server_acc
 			perror("base");
 			return;
 		}
-
-		// struct clt_recv_param_s *clt_param = malloc(sizeof(struct clt_recv_param_s));
-		// clt_param->server_tun_socket = tunnel_sock;
 
 		struct event *clt_recv_event = event_new(base, client_server_sock, EV_READ | EV_PERSIST,
 													(event_callback_fn)client_recv_event_handler, (void *)

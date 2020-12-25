@@ -31,7 +31,6 @@
 #define pid_file_fpath "./project/data/pid.txt"
 #define net_count_file_fpath "./project/data/network count.txt"
 #define ACCESS_DENIED "Access denied"
-#define TUN_NAME "tap0"
 #define BUFSIZE 16536
 
 static client_event_t* client_event;
@@ -165,12 +164,6 @@ void read_tun_event_handler(int tun_socket, short flags, struct recv_param_s* re
     puts("Received ip packet on tap interface");
     memcpy(ip_packet, buffer, n);
     packet_len = n;
-
-    // while (n != -1) {
-    //     n = read(tun_socket, buffer, BUFSIZE);
-    //     strncat(ip_packet, buffer, n);
-    //     packet_len += n;
-    // }
 
     printf("Read %d of data\n", packet_len);
     if (write(recv_tun_param->socket, ip_packet, packet_len) == -1) {
