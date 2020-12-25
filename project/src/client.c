@@ -29,6 +29,7 @@
 
 #define SERVER_PORT 6666
 #define pid_file_fpath "./project/data/pid.txt"
+#define net_count_file_fpath "./project/data/network count.txt"
 #define ACCESS_DENIED "Access denied"
 #define TUN_NAME "tap0"
 #define BUFSIZE 16536
@@ -36,6 +37,35 @@
 static client_event_t* client_event;
 
 volatile int process_clt_exited = 0;
+
+int increment_network_count(int* res_net_count) {
+    FILE* net_count_file = fopen(net_count_file_fpath, "r");
+    if (net_count_file == NULL) {
+        net_count_file = fopen(net_count_file_fpath, "w");
+        if (fprintf(net_count_file, "%d", 0) != 1) {
+            return FAILURE;
+        }
+
+        fclose(net_count_file);
+        *res_net_count = 0;
+        return SUCCESS;
+    }
+
+    int net_count;
+    if (fscanf(net_count_file, "%d", &net_count) != 1) {
+        return FAILURE;
+    }
+    fclose(net_count_file);
+
+    net_count++;
+    net_count_file = fopen(net_count_file_fpath, "w");
+    if (fprintf(net_count_file, "%d", net_count) != 1) {
+        return FAILURE;
+    }
+    fclose(net_count_file);
+    *res_net_count = net_count;
+    return SUCCESS;
+}
 
 void destroy(){
     event_del(client_event->clt_recv_event);
@@ -296,11 +326,31 @@ int set_connection_process(char* get_addr, int socket) {
     }
     fclose(pid_file);
 
-    int tun_socket = create_client_tun(TUN_NAME, get_addr);
+    int network_count;
+    if (increment_network_count(&network_count) == FAILURE) {
+        goto error;
+    }
+
+    char* tap_name = (char*)calloc(MAX_STORAGE, sizeof(char));
+    if (tap_name == NULL) {
+        goto error;
+    }
+    char tap_id_str[10];
+    sprintf(tap_id_str, "%d", network_count);
+    strcpy(tap_name, "tap");
+    strcat(tap_name, tap_id_str);
+
+    int tun_socket = create_client_tun(tap_name, get_addr);
     if (event_anticipation(tun_socket, socket) == FAILURE) {
         return FAILURE;
     }
+
+    free(tap_name);
+
     return SUCCESS;
+error:
+    printf("Error occured while setting connection process: %s\n", strerror(errno));
+	return FAILURE;
 }
 
 int get_cmd_response(int socket, char* response) {
