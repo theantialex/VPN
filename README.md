@@ -7,7 +7,7 @@ The project consists of two parts – client and server. The client sends reques
 
 Installing
 ----------
-    git clone https://gitlab.com/theantialex/vpn.git
+    git clone https://github.com/theantialex/VPN.git
     cd vpn
     make
 
