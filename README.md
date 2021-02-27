@@ -44,4 +44,4 @@ Authors
 -------
 Anna Bushe - @AnnaBushe (Git & Telegram)
 
-Alexandra Volynets - @TheAntiAlex (Git), @AntiAlex (Telegram)
+Alexandra Volynets - @TheAntiAlex (Git & Telegram)
